@@ -27,6 +27,10 @@ only on this repository. Its webhook is disabled because Actions receives issue
 events. App tokens are minted only in trusted publication/issue-closing steps
 and revoked by the token action afterward.
 
+Run **Verify BMA Runtime** manually to verify the Actions caller role and a real
+Codex command without opening an issue or modifying the board. It creates and
+deletes its own disposable BMA session.
+
 ## Presenter rehearsal
 
 1. Open the live board and select **Reset demo board**.

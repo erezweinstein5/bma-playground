@@ -14,5 +14,7 @@
   "RuntimeRepositoryUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime",
   "BuildProject": "bma-playground-runtime",
   "RuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:135808937215:runtime/bma_playground_codex-TRcPbn7JNG",
-  "RuntimeId": "bma_playground_codex-TRcPbn7JNG"
+  "RuntimeId": "bma_playground_codex-TRcPbn7JNG",
+  "RuntimeVersion": "2",
+  "RuntimeImageUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime@sha256:bd02adb1f22b284f651c39fb604dd559fc3e16e771076d4708840e2da2703ff3"
 }
