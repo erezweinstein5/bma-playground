@@ -1,0 +1,61 @@
+name: Checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    name: Build, unit, and board checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: baseline-browser-results
+          path: |
+            test-results/
+            playwright-report/
+  repair:
+    name: Repair acceptance
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Load independent acceptance test from the PR base revision
+        # The proposed repair cannot approve itself by weakening this check.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags origin "$BASE_SHA"
+          mkdir -p tests/browser
+          git show "$BASE_SHA:tests/browser/repair.spec.js" > tests/browser/repair.spec.js
+          git show "$BASE_SHA:playwright.config.js" > playwright.config.js
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/browser/repair.spec.js
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: repair-browser-results
+          path: |
+            test-results/
+            playwright-report/

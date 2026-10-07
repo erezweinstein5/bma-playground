@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#254bce" />
+    <meta name="description" content="A small launch board for getting good work over the line." />
+    <title>Launch board · BMA Playground</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <a class="skip-link" href="#board">Skip to board</a>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Workspace">
+        <a class="brand-mark" href="/" aria-label="BMA Playground home">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M7 25V7h8a5 5 0 0 1 0 10H7m8 0h3a4 4 0 0 1 0 8H7" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <span class="rail-label">Playground</span>
+        <span class="rail-avatar" title="Your workspace">EW</span>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>BMA Playground</span><span aria-hidden="true">/</span><strong>Launch board</strong></div>
+          <span class="workspace-badge"><span class="connection-dot"></span>Personal workspace</span>
+        </header>
+        <section class="intro" aria-labelledby="page-title">
+          <div class="intro-copy">
+            <p class="section-label"><span class="small-line" aria-hidden="true"></span>One board. A little momentum.</p>
+            <h1 id="page-title">Good work.<br /><span>Moving forward.</span></h1>
+            <p class="intro-description">A home for the ideas, details, and finishing touches<br class="desktop-break" /> that make a launch feel ready.</p>
+          </div>
+          <div class="progress-panel" aria-label="Launch progress">
+            <svg class="progress-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ring-track" cx="60" cy="60" r="49" />
+              <circle id="ring-value" class="ring-value" cx="60" cy="60" r="49" pathLength="100" />
+            </svg>
+            <div class="progress-number"><strong id="progress-percent">0%</strong><span>complete</span></div>
+            <div class="progress-caption"><strong id="completion-count">0 of 6 tasks</strong><span>Every move makes a difference.</span></div>
+          </div>
+        </section>
+        <section class="board-section" aria-labelledby="board-title">
+          <div class="board-toolbar">
+            <div class="board-heading"><h2 id="board-title">This week’s launch</h2><span class="board-view">Board view</span></div>
+            <label class="search-field">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span class="sr-only">Search tasks</span>
+              <input id="search" type="search" placeholder="Find a task…" autocomplete="off" />
+              <kbd aria-hidden="true">/</kbd>
+            </label>
+          </div>
+          <div id="board" class="board" tabindex="-1"></div>
+          <p id="search-result" class="search-result" hidden></p>
+          <div class="board-footer"><span><span class="hint-dot" aria-hidden="true"></span>Drag a card to move it, or use its status menu.</span><span id="save-state">Saved on this device</span></div>
+        </section>
+        <footer class="page-footer"><span>A small space for what’s next.</span><button id="reset" class="text-button" type="button">Reset demo board <span aria-hidden="true">↺</span></button></footer>
+        <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

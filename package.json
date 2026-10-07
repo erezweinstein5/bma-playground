@@ -1,0 +1,20 @@
+{
+  "name": "bma-playground",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:ui": "playwright test tests/browser/board.spec.js",
+    "test:repair": "playwright test tests/browser/repair.spec.js",
+    "prepare:repair": "node scripts/prepare-repair.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "vite": "8.3.3"
+  }
+}

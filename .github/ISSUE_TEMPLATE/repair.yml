@@ -1,0 +1,36 @@
+name: Repair the launch board
+description: Assign a visible application bug to the demo repair pipeline.
+title: "[Repair] "
+labels: ["agent-fix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the visible problem and the behavior you expect.
+        The current scaffold prepares an assignment; live BMA execution will be connected during setup.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is broken?
+      placeholder: Moving a card to Done leaves it in In progress.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. Open the launch board and reset the demo.
+        2. Drag "Build the onboarding flow" from In progress to Done.
+        3. Observe its column and the completion count.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      value: |
+        The card stays in Done, progress changes from 2 of 6 to 3 of 6 (50%),
+        and the change survives a page refresh. The status menu should work too.
+    validations:
+      required: true

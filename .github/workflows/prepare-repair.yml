@@ -1,0 +1,43 @@
+name: Prepare BMA repair
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+concurrency:
+  group: prepare-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: contains(github.event.issue.labels.*.name, 'agent-fix') && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Pin source revision
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Prepare assignment and optional BMA request payloads
+        id: assignment
+        env:
+          DEMO_OPERATORS: ${{ vars.DEMO_OPERATORS || github.repository_owner }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.sha }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          BMA_MODEL: ${{ vars.BMA_MODEL }}
+          BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
+          BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+          BMA_WORKSPACE: ${{ vars.BMA_WORKSPACE }}
+        run: node scripts/prepare-repair.mjs
+      - uses: actions/upload-artifact@v4
+        if: steps.assignment.outputs.prepared == 'true'
+        with:
+          name: repair-${{ steps.assignment.outputs.event_id }}
+          path: ${{ steps.assignment.outputs.artifact_path }}
+          retention-days: 7

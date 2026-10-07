@@ -1,0 +1,40 @@
+name: Verify GitHub App
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticate:
+    name: Verify repository-scoped authentication
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: bma-playground
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+      - name: Verify token repository scope
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api installation/repositories > "$RUNNER_TEMP/app-repositories.json"
+          jq -e --arg expected "$GITHUB_REPOSITORY" \
+            '.total_count == 1 and .repositories[0].full_name == $expected' \
+            "$RUNNER_TEMP/app-repositories.json"
+          gh api "repos/$GITHUB_REPOSITORY" --jq '{repository: .full_name, permissions: .permissions}'
+          {
+            echo "GitHub App authentication succeeded."
+            echo
+            echo "Token access is restricted to $GITHUB_REPOSITORY."
+            echo "Contents, issues, and pull-request write permissions were requested."
+            echo "No repository content, issues, or pull requests were changed by this check."
+            echo "The token is revoked by the action after this job."
+          } >> "$GITHUB_STEP_SUMMARY"
