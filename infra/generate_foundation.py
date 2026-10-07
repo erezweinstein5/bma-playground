@@ -127,7 +127,7 @@ def template():
         "Action": "sts:AssumeRoleWithWebIdentity",
         "Condition": {"StringEquals": {
             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-            "token.actions.githubusercontent.com:sub": sub("repo:${GitHubRepository}:ref:refs/heads/main"),
+            "token.actions.githubusercontent.com:sub": ref("GitHubOidcSubject"),
         }},
     }]
     resources["DeployRole"] = role(github_trust, [
@@ -213,8 +213,9 @@ def template():
         "AWSTemplateFormatVersion": "2010-09-09",
         "Description": "BMA Playground: private static hosting, GitHub OIDC roles, and Runtime build/storage foundation.",
         "Parameters": {
-            "GitHubRepository": {"Type": "String", "Default": "erezweinstein5/bma-playground",
-                "AllowedPattern": "[A-Za-z0-9-]+/[A-Za-z0-9_.-]+"},
+            "GitHubOidcSubject": {"Type": "String",
+                "Default": "repo:erezweinstein5@125476602/bma-playground@1408690708:ref:refs/heads/main",
+                "AllowedPattern": "repo:[A-Za-z0-9@_./:-]+:ref:refs/heads/main"},
             "BmaModel": {"Type": "String", "Default": "openai.gpt-5.6-luna",
                 "AllowedPattern": "openai\\.[A-Za-z0-9.-]+"},
         },

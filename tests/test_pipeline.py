@@ -4,12 +4,46 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
+import importlib.util
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 from patch_boundary import canonical_patch, git
 from bma_client import sse_events, BmaClient
+spec = importlib.util.spec_from_file_location("workspace_io",
+    Path(__file__).resolve().parents[1] / "runtime/tools/workspace_io.py")
+workspace_io = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(workspace_io)
+
+
+class SourceArchiveTests(unittest.TestCase):
+    def archive(self, name, kind=tarfile.REGTYPE):
+        output = io.BytesIO()
+        with tarfile.open(fileobj=output, mode="w") as archive:
+            info = tarfile.TarInfo(name)
+            info.type = kind
+            info.linkname = "/etc/passwd" if kind == tarfile.SYMTYPE else ""
+            info.size = 0
+            archive.addfile(info, io.BytesIO())
+        return output.getvalue()
+
+    def test_rejects_traversal_absolute_and_git_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("../escape", "/absolute", ".git/config"):
+                with self.assertRaisesRegex(ValueError, "Unsafe"):
+                    workspace_io.unpack(self.archive(name), Path(directory))
+
+    def test_rejects_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "symlinks"):
+                workspace_io.unpack(self.archive("src/link", tarfile.SYMTYPE), Path(directory))
+
+    def test_extracts_regular_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace_io.unpack(self.archive("src/app.js"), Path(directory))
+            self.assertTrue((Path(directory) / "src/app.js").is_file())
 
 
 class PatchBoundaryTests(unittest.TestCase):

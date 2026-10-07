@@ -1,0 +1,36 @@
+name: Verify BMA Runtime
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r pipeline/requirements.txt
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        with:
+          role-to-assume: ${{ vars.AWS_REPAIR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+      - name: Verify a real BMA command using the repair caller role
+        env:
+          BMA_MODEL: ${{ vars.BMA_MODEL }}
+          BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
+          BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+        run: python pipeline/smoke_bma.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bma-runtime-smoke
+          path: artifacts/bma-smoke/
+          retention-days: 7

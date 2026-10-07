@@ -12,5 +12,7 @@
   "SessionRoleArn": "arn:aws:iam::135808937215:role/bma-playground-SessionRole-mbN6tLtnxI5M",
   "RuntimeRoleArn": "arn:aws:iam::135808937215:role/bma-playground-RuntimeRole-v7mhYSYhrjfY",
   "RuntimeRepositoryUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime",
-  "BuildProject": "bma-playground-runtime"
+  "BuildProject": "bma-playground-runtime",
+  "RuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:135808937215:runtime/bma_playground_codex-TRcPbn7JNG",
+  "RuntimeId": "bma_playground_codex-TRcPbn7JNG"
 }

@@ -90,12 +90,14 @@ def main():
         prompt = (
             f"Assignment {event}; source is pinned to {base}.\n"
             f"First run exactly:\n{prepare}\n"
+            "If the preparation helper fails, stop and report the failure. Do not reconstruct or commit the baseline yourself.\n"
             f"Work in /mnt/home/workspace/jobs/{event}/repo. Read AGENTS.md there.\n"
             "Inspect and repair the requested functionality, changing src/ only. "
             "Run npm ci, npm test, and npm run build in that repository. "
             "Browser checks will run independently in CI; do not install browser dependencies here.\n"
             "Task data:\n" + json.dumps({"title": assignment["title"], "request": assignment["request"]}) +
             f"\nWhen the repair is ready, run exactly:\n{export}\n"
+            "If export fails, stop and report the failure; do not modify the helper.\n"
             "Read /mnt/home/workspace/session-marker.txt and report its value to demonstrate persistence. "
             "Describe the repair and actual validation results."
         )

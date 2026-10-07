@@ -51,7 +51,11 @@ be disguised as a successful repair. Do not roll back the integration files.
 artifact storage, IAM/OIDC, encrypted logs, and the native ARM64 CodeBuild project.
 `runtime/` is the image build context. Its `buildspec.yml` publishes an immutable
 ECR tag. `infra/runtime.json` creates the Runtime from the image URI, execution
-role, and log key outputs. Validate with cfn-lint and `infra/security.guard`, then
+role outputs. AgentCore creates its log group; apply `infra/configure_runtime_logs.py`
+to set encryption and retention using the foundation output. The OIDC trust uses
+the exact immutable subject returned by GitHub
+`GET /repos/{owner}/{repo}/actions/oidc/customization/sub`.
+Validate with cfn-lint and `infra/security.guard`, then
 review a CloudFormation change set and its validation events before execution.
 
 Storage buckets, the ECR repository, and log resources are retained on stack

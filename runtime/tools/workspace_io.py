@@ -17,7 +17,10 @@ LIMIT = 5 * 1024 * 1024
 
 
 def git(repo, *args):
-    return subprocess.check_output(["git", "-C", str(repo), *args])
+    # Session storage reports root ownership even when the app user can write.
+    # Trust this exact helper-created repository, never a wildcard directory.
+    return subprocess.check_output(["git", "-c", f"safe.directory={repo}",
+                                    "-C", str(repo), *args])
 
 
 def unpack(data, target):
@@ -61,6 +64,7 @@ def main():
         repo.mkdir(parents=True)
         unpack(data, repo)
         git(repo, "init", "--initial-branch=main")
+        git(repo, "config", "--global", "--add", "safe.directory", str(repo))
         git(repo, "config", "user.name", "BMA Playground")
         git(repo, "config", "user.email", "bma-playground@users.noreply.github.com")
         git(repo, "add", ".")
