@@ -1,0 +1,101 @@
+name: Deploy board
+on:
+  workflow_run:
+    workflows: [Checks]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      WEB_BUCKET: ${{ vars.WEB_BUCKET }}
+      DISTRIBUTION_ID: ${{ vars.DISTRIBUTION_ID }}
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - name: Skip a superseded revision
+        id: current
+        run: |
+          current="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$current" = "$DEPLOY_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "A newer main revision will deploy."
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          python-version: '3.12'
+      - name: Validate and build
+        if: steps.current.outputs.deploy == 'true'
+        run: |
+          pip install -r pipeline/requirements.txt
+          npm ci
+          npm test
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Identify a merged BMA repair
+        id: issue
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python pipeline/deployment_issue.py identify
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+      - name: Publish and verify the exact CloudFront revision
+        if: steps.current.outputs.deploy == 'true'
+        run: python pipeline/deploy.py
+      - name: Verify the live board
+        if: steps.current.outputs.deploy == 'true'
+        run: npm run test:ui
+      - name: Verify the live repair acceptance contract
+        if: steps.issue.outputs.repair == 'true'
+        run: npm run test:repair
+      - name: Authenticate the App after successful live verification
+        id: app
+        if: steps.issue.outputs.repair == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: bma-playground
+          permission-issues: write
+      - name: Close the repaired issue
+        if: steps.issue.outputs.repair == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: python pipeline/deployment_issue.py close
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.current.outputs.deploy == 'true'
+        with:
+          name: deployment-${{ env.DEPLOY_SHA }}
+          path: |
+            artifacts/deployment.json
+            test-results/
+            playwright-report/
+          retention-days: 7

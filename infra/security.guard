@@ -1,0 +1,22 @@
+let buckets = Resources.*[ Type == 'AWS::S3::Bucket' ]
+rule private_encrypted_buckets when %buckets !empty {
+    %buckets {
+        DeletionPolicy == 'Retain'
+        UpdateReplacePolicy == 'Retain'
+        Properties.PublicAccessBlockConfiguration {
+            BlockPublicAcls == true
+            BlockPublicPolicy == true
+            IgnorePublicAcls == true
+            RestrictPublicBuckets == true
+        }
+        Properties.BucketEncryption.ServerSideEncryptionConfiguration !empty
+        Properties.VersioningConfiguration.Status == 'Enabled'
+    }
+}
+let logs = Resources.*[ Type == 'AWS::Logs::LogGroup' ]
+rule encrypted_bounded_logs when %logs !empty {
+    %logs.Properties {
+        KmsKeyId exists
+        RetentionInDays <= 30
+    }
+}

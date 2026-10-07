@@ -31,7 +31,7 @@ async function main() {
     await writeFile(resolve(output, 'bma-requests.json'), `${JSON.stringify(requests, null, 2)}\n`);
     configured = true;
   }
-  const status = `Assignment prepared for ${assignment.repository} issue #${assignment.issueNumber}.\n\n${configured ? 'BMA request payloads were also generated.' : 'BMA configuration is incomplete; only the assignment was generated.'}\n\nBMA execution, source transfer, PR publication, merging, and deployment are not connected yet. No agent session was created.\n`;
+  const status = `Assignment prepared for ${assignment.repository} issue #${assignment.issueNumber}.\n\n${configured ? 'BMA configuration is available; the next step executes the assignment.' : 'BMA configuration is incomplete.'}\n\nSource revision: ${baseCommit}. Assignment event: ${assignment.eventId}.\n`;
   console.log(status);
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, status);
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `prepared=true\nartifact_path=${output}\nevent_id=${assignment.eventId}\n`);

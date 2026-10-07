@@ -1,0 +1,40 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "BMA Playground Codex environment with persistent session storage.",
+  "Parameters": {
+    "ImageUri": {"Type": "String"},
+    "RuntimeRoleArn": {"Type": "String"},
+    "LogKeyArn": {"Type": "String"}
+  },
+  "Resources": {
+    "Runtime": {
+      "Type": "AWS::BedrockAgentCore::Runtime",
+      "Properties": {
+        "AgentRuntimeName": "bma_playground_codex",
+        "Description": "Codex execution environment for GitHub issue repairs",
+        "RoleArn": {"Ref": "RuntimeRoleArn"},
+        "AgentRuntimeArtifact": {"ContainerConfiguration": {"ContainerUri": {"Ref": "ImageUri"}}},
+        "NetworkConfiguration": {"NetworkMode": "PUBLIC"},
+        "ProtocolConfiguration": "HTTP",
+        "LifecycleConfiguration": {"IdleRuntimeSessionTimeout": 1800, "MaxLifetime": 28800},
+        "FilesystemConfigurations": [{"SessionStorage": {"MountPath": "/mnt/home"}}],
+        "EnvironmentVariables": {"BMA_HOME_DIR": "/mnt/home", "DISABLE_ADOT_OBSERVABILITY": "true"},
+        "Tags": {"Project": "bma-playground"}
+      }
+    },
+    "RuntimeLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "LogGroupName": {"Fn::Sub": "/aws/bedrock-agentcore/runtimes/${Runtime.AgentRuntimeId}-DEFAULT"},
+        "RetentionInDays": 14,
+        "KmsKeyId": {"Ref": "LogKeyArn"}
+      }
+    }
+  },
+  "Outputs": {
+    "RuntimeArn": {"Value": {"Ref": "Runtime"}},
+    "RuntimeId": {"Value": {"Fn::GetAtt": ["Runtime", "AgentRuntimeId"]}}
+  }
+}

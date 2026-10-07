@@ -1,0 +1,16 @@
+{
+  "account": "135808937215",
+  "region": "us-east-1",
+  "foundationStack": "bma-playground",
+  "runtimeStack": "bma-playground-runtime",
+  "WebBucket": "bma-playground-webbucket-bfdq89o3ojh1",
+  "ArtifactBucket": "bma-playground-artifactbucket-chvvij7eb1hj",
+  "AppUrl": "https://dvf0au2tge8qd.cloudfront.net",
+  "DistributionId": "EWWV2CF62TR18",
+  "DeployRoleArn": "arn:aws:iam::135808937215:role/bma-playground-DeployRole-rvonGL3BAtmq",
+  "RepairRoleArn": "arn:aws:iam::135808937215:role/bma-playground-RepairRole-6G9AGTv3jAZK",
+  "SessionRoleArn": "arn:aws:iam::135808937215:role/bma-playground-SessionRole-mbN6tLtnxI5M",
+  "RuntimeRoleArn": "arn:aws:iam::135808937215:role/bma-playground-RuntimeRole-v7mhYSYhrjfY",
+  "RuntimeRepositoryUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime",
+  "BuildProject": "bma-playground-runtime"
+}

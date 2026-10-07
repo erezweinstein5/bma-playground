@@ -1,92 +1,82 @@
 # Issue-to-deployment integration
 
-## Intended flow
-
 ```mermaid
 sequenceDiagram
   actor Presenter
-  participant GitHub
-  participant Actions
+  participant GH as GitHub / Actions
+  participant S3 as Private artifact bucket
   participant BMA
   participant Runtime as AgentCore Runtime
-  participant App
-  Presenter->>GitHub: Open labeled repair issue
-  GitHub->>Actions: Issue event
-  Actions->>Actions: Authorize operator, deduplicate, pin base SHA
-  Actions->>Runtime: Transfer exact source archive via S3
-  Actions->>BMA: Create/resume session and submit task
-  BMA->>Runtime: Inspect, edit, and test source
-  Runtime-->>Actions: Export patch tied to base SHA
-  Actions->>GitHub: Validate patch, push branch, open PR
-  GitHub->>Actions: Independent required checks
-  Actions->>GitHub: Enable automatic merge after checks pass
-  GitHub->>Actions: Merged main revision
-  Actions->>App: Deploy exact merged revision
-  Actions->>App: Live smoke verification
-  Actions->>GitHub: Record deployment evidence and close issue
+  participant App as CloudFront board
+  Presenter->>GH: agent-fix issue or /codex comment
+  GH->>S3: Claim event; pin and upload source
+  GH->>BMA: Create/reuse issue session; submit request
+  BMA->>Runtime: Codex commands inspect, edit, test
+  Runtime->>S3: Export source patch and manifest
+  GH->>S3: Read patch and validate base/digest/scope
+  GH->>GH: App opens PR; required checks; auto-merge
+  GH->>App: Publish exact merged revision
+  GH->>App: Verify revision and browser acceptance
+  GH->>GH: Close issue after successful live verification
 ```
 
-Automatic merge and deployment after passing required checks are part of the
-agreed demo. Failed or missing checks must leave the PR unmerged.
+## Roles and trust boundaries
 
-## What exists now
+- The Actions repair role can create/read BMA sessions, pass only the BMA session
+  role, and access the specific source/patch/state prefixes.
+- The BMA session role can call the selected model and invoke/stop this Runtime.
+- The Runtime role can pull its ECR image, connect Codex to BMA, read `sources/`,
+  and write `repairs/`. It cannot read Actions state or access GitHub credentials.
+- The Actions deployment role can publish only the web bucket and invalidate
+  only this CloudFront distribution. Both OIDC roles trust this repository's
+  `main` ref and the STS audience.
 
-The app, independent acceptance test, issue template, event parser, and BMA
-request builder are present. No BMA calls, durable records, source transport,
-PR publication, auto-merge, or deployment are implemented yet. The issue workflow
-reports `prepared` and explicitly identifies that limit.
+Source is `git archive` at the captured SHA, without local credentials or `.git`.
+The image-owned helper safely extracts it into a new per-event repository.
+The adapter treats the exported manifest and patch as untrusted: it checks
+identity, base SHA, digest, and size, applies the patch in an isolated clone, and
+accepts only regular non-executable files below `src/`. Workflows, dependencies,
+checks, symlinks, submodules, binary patches, and other paths are rejected.
 
-## Next checkpoint: one issue produces one real PR
+The GitHub App opens a PR only after that boundary passes. The independent
+`Repair scope` and `Repair acceptance` jobs load their policy from the PR base.
+Required checks are `Pipeline safety`, `Repair scope`, `Build, unit, and board
+checks`, and `Repair acceptance`. Auto-merge is enabled only by the trusted
+publisher after it has validated a BMA result. PRs use `Refs #N`, so merge alone
+does not close an issue.
 
-1. Provision an AgentCore Runtime running the supported Codex exec server,
-   development tools, and persistent workspace. Prove a real BMA file edit.
-2. Add Actions OIDC, the BMA caller role, session role, Runtime execution role,
-   and a private source/artifact bucket.
-3. Save an execution record keyed by repository + issue; accept each event
-   once. The current deterministic event ID is an identity, not durable dedup.
-4. Export source at the captured base SHA, stage it in the Runtime, create or
-   resume BMA, and submit the assignment.
-5. Observe terminal turn results and durable items. Accepted input or an idle
-   session alone does not establish success. Bound execution and retries.
-6. Export a patch with new files and deletions. Verify the base SHA and reject
-   paths outside `src/`, traversal, symlinks, unexpected file types, and edits
-   to checks, dependencies, or workflows before applying anything.
-7. Use a repository-scoped GitHub App installation token to publish a branch
-   and PR. Link it with `Refs #N`; do not close the issue at merge time.
+## State and failure handling
 
-## Then checks, merge, and deployment
+S3 stores `state/issues/<number>.json` and `state/events/<event>.json`.
+Conditional creation claims each event once. Duplicate completed triggers are
+no-ops. An ambiguous or interrupted mutation is recorded as `needs_inspection`;
+it is not automatically submitted again. Inspect the Actions transcript, BMA
+session/items, and source/patch objects before posting a new `/codex` request.
+No automatic model repair retries are currently configured.
 
-- Require `Build, unit, and board checks` and `Repair acceptance` with branch
-  rules and no manual review gate for the demo happy path.
-- Allowlist automatically merged branches using the durable assignment record;
-  a `codex/` prefix or a PR label alone is not authorization.
-- Protect workflow/test files and enforce the application-only patch boundary.
-  Loading the base acceptance test is useful but is not the entire trust boundary.
-- Enable auto-merge only for validated agent repair PRs.
-- Deploy on a merge to `main` using the actual merged SHA.
-- Run `APP_URL=<deployed-url> npm run test:repair` against the deployed app,
-  verifying the deployment's revision separately before closing the issue.
-- Report failures truthfully. Add bounded same-session repair retries only
-  after the single-attempt path works.
+The adapter opens SSE before submitting input, waits for a new successful
+terminal turn event, and saves durable output items. Acknowledgement or `idle`
+alone is insufficient. A missing patch, failed stream, failed check, changed
+main SHA, or invalid scope stops publication. If deployment or live acceptance
+fails, the issue stays open; there is no automatic rollback yet.
 
-## Persistence demonstration
+Deployment uploads immutable assets first, HTML last, and a no-cache revision
+record, then waits for CloudFront invalidation. Live checks use the deployed URL.
+Older assets are retained so cached pages continue to work. Superseded pending
+main revisions are skipped; deployment jobs are serialized.
 
-Keep issue → BMA session → Runtime workspace identity outside Actions runners.
-Store an uncommitted marker outside the transferred repository. After stopping
-and replacing compute, show that the marker survives and a `/codex` comment
-continues the same conversation. A fresh clone is not evidence of persistence.
+## Session persistence
 
-For follow-ups after a merge, stage current `main` in a new repair branch while
-retaining session context and files outside the repository. AgentCore managed
-session storage is one candidate for a same-session demo; evaluate its expiry
-and Runtime-version lifecycle before selecting it. EFS is another choice when
-storage must have an independent lifecycle.
+BMA conversation state is mapped to the issue. AgentCore managed session storage
+holds `/mnt/home`, including Codex home, connection state, repository directories,
+and an uncommitted `session-marker.txt`. Follow-ups stage current main in a new
+per-event repository while retaining that marker and the BMA conversation.
+Session storage expires after 14 idle days and resets across Runtime versions;
+it is not indefinite storage. Runtime-stop/restart persistence must be shown by
+an actual marker probe, separately from same-process follow-up success.
 
 ## References
 
-- AWS BMA preview REST API reference:
-  https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-managed-agents-openai-api-reference.html
-- AgentCore Runtime example:
-  https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-managed-agents-openai-agentcore-runtime.html
-- GitHub workflow trigger behavior:
-  https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+- https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-get-started-bma.html
+- https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-managed-agents-openai-api-reference.html
+- https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-filesystem-configurations.html
