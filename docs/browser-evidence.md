@@ -16,8 +16,8 @@ not installed in the Codex Runtime.
    preview by editing its local working copy.
 5. Actions verifies preview identities, capture hashes, observed outcomes, media
    limits, and the presence of browser actions and assertions. It encodes MP4
-   recordings and a shorter GIF and publishes the presentation media.
-6. The GitHub App creates the PR with embedded screenshots/GIF, video download
+   recordings and publishes the presentation media.
+6. The GitHub App creates the PR with embedded screenshots, video download
    links, a watch page, and a JSON report. The PR identifies the tested base,
    patch SHA-256, resulting commit, BMA turns, and browser sessions.
 7. Existing independent checks still control automatic merge and deployment.
@@ -44,8 +44,10 @@ No signed live-view URLs or AWS credentials are published in GitHub.
   The Runtime has no permission to publish to this bucket or to production.
 - PR media URLs are stable and have no signed-URL expiry. Current S3 objects remain
   until explicitly removed. GitHub's supplemental run artifacts expire in 7 days.
-- The GIF shows before then after, sped up to at most 12 seconds per phase. Full
-  MP4s preserve capture timing. Both phases carry an on-screen label.
+- MP4s preserve capture timing. Both phases carry an on-screen label and show
+  actual assertion text. Task-board completion recordings begin with the same
+  native mouse drag, with an event-driven pointer overlay and a pause after release.
+- The PR and watch page use videos without a duplicate GIF.
 
 Only the public demo application appears in the presentation media. Browser
 tools navigate only to the exact trusted preview and restrict network requests
@@ -54,6 +56,12 @@ to its build prefix. They expose no arbitrary JavaScript execution.
 Browser observations and screenshots are agent-produced evidence, not an
 independent acceptance oracle. A successful agent assertion cannot override a
 failed required CI check.
+
+If the live BMA event stream disconnects, the adapter checks session state and
+durable items without resubmitting the message. Recovery requires one new turn
+with a completed final answer and no unfinished items; idle state alone is not
+enough. The transcript labels recovered completion as `client.turn.reconciled`,
+and the usual patch and browser-evidence checks still run.
 
 ## Rehearsing without breaking production
 

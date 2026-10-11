@@ -93,11 +93,12 @@ class EvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     unpack_capture(archive, root)
 
-    def test_pr_contains_inline_images_gif_and_stable_video_links(self):
+    def test_pr_contains_images_and_video_links_without_duplicate_gif(self):
         text = evidence_markdown({"url": "https://example.invalid/evidence/issue-123/hash",
                                   "browserSessions": {"before": "one", "after": "two"}})
-        for expected in ("![Before]", "![After]", "![Browser comparison]", "before.mp4", "after.mp4", "report.json"):
+        for expected in ("![Before]", "![After]", "before.mp4", "after.mp4", "report.json"):
             self.assertIn(expected, text)
+        self.assertNotIn(".gif", text)
         self.assertNotIn("X-Amz-", text)
 
     def test_files_alone_cannot_prove_codex_browser_use(self):
@@ -112,6 +113,11 @@ class EvidenceTests(unittest.TestCase):
                   "turn_id": "turn", "name": name, "output": {"content": [{"text": json.dumps(value)}]}}
                  for name, value in values.items()]
         validate_browser_calls(items, "turn", self.descriptor(), manifest)
+        items[1]["arguments"] = json.dumps({"action": "select"})
+        with self.assertRaisesRegex(ValueError, "must begin"):
+            validate_browser_calls(items, "turn", self.descriptor(), manifest, first_action="drag")
+        items[1]["arguments"] = json.dumps({"action": "drag"})
+        validate_browser_calls(items, "turn", self.descriptor(), manifest, first_action="drag")
         with self.assertRaises(ValueError):
             validate_browser_calls(items, "another-turn", self.descriptor(), manifest)
         values["browser_finish"]["captureSha256"] = "d" * 64

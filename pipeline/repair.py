@@ -113,12 +113,19 @@ def main():
             f"Work in /mnt/home/workspace/jobs/{event}/repo. Read AGENTS.md there.\n"
             f"Before editing, call agentcore_browser browser_open with event={event!r}, phase='before'. "
             "Use browser_snapshot to inspect the page and browser_action to reproduce the reported interaction. "
+            "For task-board completion issues, the FIRST interaction must be dragging the affected card to Done, "
+            "not changing its status menu. Then assert the announcement, actual column placement, and progress. "
+            "browser_assert_text compares EXACT text: target the card's h3 within the column, "
+            "#announcement, #completion-count, and #progress-percent, not a whole section or main. "
+            "Check every assertion result and correct an inaccurate selector before finishing. "
             "Use browser_assert_text to record visible evidence of the incorrect behavior and browser_screenshot to inspect it. "
             "Call browser_finish with outcome='reproduced' only if the issue actually occurs; otherwise use 'not_reproduced', stop, and report it. "
             "Record clear actual observations in its summary. Do not repair code until the before recording is complete.\n"
             "Then inspect and repair the requested functionality, changing src/ only. "
             "Run npm ci, npm test, and npm run build in that repository. "
             "Browser tools connect to AgentCore Browser; do not install or launch a local browser.\n"
+            "Stop after exporting and reporting this repair. Do not open the after preview yet; "
+            "the pipeline will build it and send a separate verification message.\n"
             "Task data:\n" + json.dumps({"title": assignment["title"], "request": assignment["request"]}) +
             f"\nWhen the repair is ready, run exactly:\n{export}\n"
             "If export fails, stop and report the failure; do not modify the helper.\n"
@@ -144,14 +151,18 @@ def main():
         (directory / "verified.patch").write_bytes(verified)
         before_manifest = load_json(s3, bucket, f"repairs/{event}/browser/before/manifest.json")
         validate_manifest(before_manifest, before, "before")
-        validate_browser_calls(items, outcome["turnId"], before, before_manifest)
+        first_action = "drag" if assignment.get("rehearsal") else None
+        validate_browser_calls(items, outcome["turnId"], before, before_manifest, first_action=first_action)
         after = preview(s3, assignment, "after", verified)
         verification = client.run_turn(session_id,
             f"The trusted pipeline validated your patch and built its after preview. "
             f"Call agentcore_browser browser_open with event={event!r}, phase='after'. "
             "Repeat the same real browser interactions used to reproduce the issue. "
             "Use browser_assert_text to verify the expected visible result. Verify refresh persistence where relevant. "
-            "For the initial task-board issue, verify both the status menu and dragging to Done, resetting board data between them. "
+            "For task-board completion issues, FIRST drag the card to Done, then assert actual Done-column placement, "
+            "the announcement, and 50% progress. Reload to check persistence. Only then reset and verify the status menu. "
+            "browser_assert_text compares EXACT text: use the card's h3 within the Done column, "
+            "#announcement, #completion-count, and #progress-percent. Check each assertion result. "
             "Use browser_screenshot to inspect the result. Call browser_finish with outcome='passed' only if verification succeeds, "
             "otherwise 'failed'; summarize actual observations. Do not edit code, run commands, change the source patch, "
             "or modify the preview. The captured after preview is the exact application patch that the PR will contain.",
@@ -160,7 +171,7 @@ def main():
         (directory / "verification-items.json").write_text(json.dumps(verification_items, indent=2))
         after_manifest = load_json(s3, bucket, f"repairs/{event}/browser/after/manifest.json")
         validate_manifest(after_manifest, after, "after")
-        validate_browser_calls(verification_items, verification["turnId"], after, after_manifest)
+        validate_browser_calls(verification_items, verification["turnId"], after, after_manifest, first_action=first_action)
         result = {**assignment, **outcome, "sessionId": session_id, "status": "validated",
                   "verificationTurnId": verification["turnId"],
                   "patchSha256": hashlib.sha256(verified).hexdigest(),

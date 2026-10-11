@@ -9,7 +9,7 @@ The first demo follows a visible application repair:
 
 Repairs now include recorded AgentCore Browser verification: Codex reproduces
 the bug on an isolated before preview, repairs the code, and validates an after
-preview. The PR contains screenshots, a comparison GIF, full MP4 recordings,
+preview. The PR contains screenshots, full MP4 recordings,
 and a report tied to the tested source. See [browser evidence](docs/browser-evidence.md)
 for live viewing and a rehearsal that leaves production fixed.
 

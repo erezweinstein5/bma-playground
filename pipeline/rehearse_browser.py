@@ -21,10 +21,13 @@ def main():
         "repository": "erezweinstein5/bma-playground", "issueNumber": 0, "eventId": event,
         "baseCommit": baseline, "branch": "codex/rehearsal-" + event, "rehearsal": True,
         "title": "Rehearsal: task cannot move to Done",
-        "request": "On the task board, move Build the onboarding flow from In progress to Done. "
+        "request": "Start by DRAGGING Build the onboarding flow from In progress to the Done column. "
                    "It stays in the old column and progress remains 2 of 6 / 33%. "
+                   "The before video must show this drag failing, not just the status menu. "
+                   "Read the announcement and progress after release. "
                    "Repair the status menu and drag-and-drop so the task moves to Done, "
                    "progress becomes 3 of 6 / 50%, and the change survives refresh. "
+                   "Start the after video with the identical drag, then verify refresh and the status menu. "
                    "Keep the remaining board interactions working.",
     }
     path = directory / "assignment.json"

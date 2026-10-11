@@ -151,14 +151,62 @@ class BrowserTools:
             await self.close()
             raise
 
-    async def caption(self):
-        await self.page.evaluate("""phase => {
+    async def caption(self, observation=""):
+        await self.page.evaluate("""({phase, observation}) => {
           document.querySelector('#bma-evidence-caption')?.remove();
           const e=document.createElement('div'); e.id='bma-evidence-caption';
           e.textContent=phase==='before' ? 'BEFORE  ·  Codex reproducing the issue' : 'AFTER  ·  Codex verifying the repair';
+          if (observation) e.textContent += '  ·  Observed: ' + observation;
           e.style.cssText='position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#101828;color:white;padding:10px 24px;border-radius:999px;font:600 16px system-ui;pointer-events:none';
           document.body.appendChild(e);
-        }""", self.phase)
+        }""", {"phase": self.phase, "observation": observation[:180]})
+
+    async def drag(self, locator, destination):
+        """A paced real mouse drag with an event-driven pointer overlay for video."""
+        await locator.scroll_into_view_if_needed()
+        source = await locator.bounding_box()
+        target = await destination.bounding_box()
+        if not source or not target:
+            raise ValueError("Both drag endpoints must be visible")
+        start = (source["x"] + source["width"] / 2, source["y"] + 30)
+        end = (target["x"] + min(target["width"] / 2, 100), target["y"] + 45)
+        target_label = await destination.get_attribute("aria-label") or "target"
+        await self.page.evaluate("""targetLabel => {
+          const dot = document.createElement('div'); dot.id='bma-drag-pointer';
+          dot.style.cssText='position:fixed;width:22px;height:22px;border:3px solid #f79009;border-radius:50%;background:#101828bb;box-shadow:0 0 0 5px #f7900933;pointer-events:none;z-index:2147483647;display:none';
+          const label = document.createElement('span');
+          label.textContent='Drag to ' + targetLabel;
+          label.style.cssText='position:absolute;left:30px;top:-5px;white-space:nowrap;background:#101828;color:white;padding:6px 12px;border-radius:8px;font:600 14px system-ui';
+          dot.appendChild(label); document.body.appendChild(dot);
+          const move = e => {dot.style.display='block';dot.style.left=(e.clientX-11)+'px';dot.style.top=(e.clientY-11)+'px';};
+          const release = () => { label.textContent='Released'; };
+          for (const event of ['mousemove','dragover']) document.addEventListener(event, move, true);
+          for (const event of ['mouseup','drop']) document.addEventListener(event, release, true);
+          window.__bmaRemoveDragPointer=() => {
+            for (const event of ['mousemove','dragover']) document.removeEventListener(event, move, true);
+            for (const event of ['mouseup','drop']) document.removeEventListener(event, release, true);
+            dot.remove(); delete window.__bmaRemoveDragPointer;
+          };
+        }""", target_label)
+        try:
+            await self.page.mouse.move(*start)
+            await self.page.wait_for_timeout(650)
+            await self.page.mouse.down()
+            # Cross the native HTML drag threshold, then move gradually.
+            await self.page.mouse.move(start[0] + 10, start[1])
+            for step in range(1, 31):
+                fraction = step / 30
+                await self.page.mouse.move(start[0] + (end[0] - start[0]) * fraction,
+                                           start[1] + (end[1] - start[1]) * fraction)
+                await self.page.wait_for_timeout(45)
+            # Two target moves reliably dispatch dragover in Chromium.
+            await self.page.mouse.move(end[0] + 1, end[1] + 1)
+            await self.page.wait_for_timeout(700)
+            await self.page.mouse.up()
+            await self.page.wait_for_timeout(2000)
+        finally:
+            await self.page.mouse.up()
+            await self.page.evaluate("window.__bmaRemoveDragPointer?.()")
 
     async def highlight(self, locator):
         await locator.wait_for(state="visible")
@@ -194,7 +242,7 @@ class BrowserTools:
                 destination = self.page.locator(target)
                 if await destination.count() != 1:
                     raise ValueError("Drag target must identify exactly one element")
-                await locator.drag_to(destination, target_position={"x": 30, "y": 45})
+                await self.drag(locator, destination)
             else:
                 raise ValueError("Unknown browser action")
         self.add_action(action, selector=selector, value=value, target=target)
@@ -205,6 +253,8 @@ class BrowserTools:
         actual = await self.page.locator(selector).inner_text()
         result = self.add_action("assert_text", selector=selector, expected=expected,
                                  actual=actual, passed=actual.strip() == expected)
+        await self.caption(actual.strip())
+        await self.page.wait_for_timeout(700)
         return result
 
     async def screenshot(self):
@@ -218,7 +268,8 @@ class BrowserTools:
             raise ValueError("No browser recording is active")
         try:
             self.add_action("finish", outcome=outcome, summary=summary[:4000])
-            await self.page.wait_for_timeout(1500)
+            await self.page.evaluate("window.scrollTo(0, 0)")
+            await self.page.wait_for_timeout(2500)
             screenshot = self.directory / "result.png"
             await self.page.screenshot(path=str(screenshot), type="png")
             await self.cdp.send("Page.stopScreencast")

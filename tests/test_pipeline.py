@@ -101,6 +101,42 @@ class PatchBoundaryTests(unittest.TestCase):
 
 
 class StreamTests(unittest.TestCase):
+    def test_disconnect_recovers_new_final_without_resubmitting(self):
+        import requests
+
+        class Response:
+            headers = {"content-type": "text/event-stream"}
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def iter_lines(self, **kwargs):
+                raise requests.exceptions.ChunkedEncodingError("interrupted")
+                yield
+
+        client = BmaClient(None, "us-east-1")
+        final = {"id": "final-new", "turn_id": "new", "type": "message",
+                 "role": "assistant", "phase": "final_answer", "status": "completed"}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(client, "items", side_effect=[[{"turn_id": "old"}], [final]]), \
+             patch.object(client, "get_session", return_value={"status": "idle"}), \
+             patch.object(client, "request", return_value=Response()) as request:
+            result = client.run_turn("session", "task", Path(directory) / "events")
+            self.assertEqual(result["turnId"], "new")
+            self.assertEqual(result["completionSource"], "durable_items")
+            self.assertEqual(sum(call.args[0] == "POST" for call in request.call_args_list), 1)
+
+    def test_idle_alone_or_old_final_cannot_recover_a_turn(self):
+        import time
+
+        client = BmaClient(None, "us-east-1")
+        final = {"id": "final-old", "turn_id": "old", "type": "message",
+                 "role": "assistant", "phase": "final_answer", "status": "completed"}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.object(client, "items", return_value=[final]), \
+             patch.object(client, "get_session", return_value={"status": "idle"}):
+            with self.assertRaisesRegex(RuntimeError, "no unambiguous completed turn"):
+                client.reconcile_turn("session", {"old"}, time.monotonic() + 5,
+                                      Path(directory) / "events")
+
     def test_sse_boundaries_comments_and_multiline(self):
         data = [b": heartbeat", b"", b"event: event", b'data: {"type":',
                 b'data: "example"}', b"", b"data: [DONE]", b""]

@@ -111,14 +111,20 @@ def validate_manifest(value, descriptor, phase):
             raise ValueError("Missing browser artifact digest")
 
 
-def validate_browser_calls(items, turn_id, descriptor, manifest):
+def validate_browser_calls(items, turn_id, descriptor, manifest, first_action=None):
     """Require service-recorded tool results, not just files an agent could write."""
     observed = {}
+    interactions = []
     for item in items:
         if (item.get("type") != "mcp_call" or item.get("server_label") != "agentcore_browser"
                 or item.get("turn_id") != turn_id or item.get("status") != "completed"):
             continue
         output = item.get("output") or {}
+        if item.get("name") == "browser_action":
+            arguments = item.get("arguments") or {}
+            if isinstance(arguments, str):
+                arguments = json.loads(arguments)
+            interactions.append(arguments.get("action"))
         for content in output.get("content", []):
             try:
                 value = json.loads(content.get("text", ""))
@@ -126,6 +132,8 @@ def validate_browser_calls(items, turn_id, descriptor, manifest):
                 continue
             if isinstance(value, dict):
                 observed.setdefault(item["name"], []).append(value)
+    if first_action and (not interactions or interactions[0] != first_action):
+        raise ValueError(f"Browser recording must begin with a real {first_action} interaction")
     if not any(value.get("browserSessionId") == manifest["browserSessionId"]
                and value.get("url") == descriptor["url"]
                for value in observed.get("browser_open", [])):
@@ -234,19 +242,11 @@ def publish_evidence(s3, result, before, after, directory):
     destination.mkdir(exist_ok=False)
     manifests = {phase: collect_phase(s3, descriptor, destination / phase)
                  for phase, descriptor in (("before", before), ("after", after))}
-    # 12 seconds per phase; speed is explicitly marked in the report and PR.
-    filters = []
-    for number, phase in enumerate(("before", "after")):
-        duration = manifests[phase]["duration"]
-        filters.append(f"[{number}:v]setpts=PTS/{max(duration / 12, 1):.6f},scale=800:-2,fps=8[v{number}]")
-    filters.append("[v0][v1]concat=n=2:v=1:a=0,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse")
-    ffmpeg("-i", str(destination / "before.mp4"), "-i", str(destination / "after.mp4"),
-           "-filter_complex", ";".join(filters), "-loop", "0", str(destination / "comparison.gif"))
     report = {"schemaVersion": 1, "eventId": result["eventId"], "baseCommit": result["baseCommit"],
               "patchSha256": result["patchSha256"], "bmaSessionId": result["sessionId"],
               "repairTurnId": result["turnId"], "verificationTurnId": result["verificationTurnId"],
               "capture": "Actual Codex MCP interactions in AgentCore Browser",
-              "gif": "Before then after, sped up to at most 12 seconds per phase; MP4s preserve capture timing.",
+              "videoTiming": "MP4s preserve capture timing, including the paced native mouse drag.",
               "phases": manifests}
     (destination / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     prefix = f"evidence/{result['eventId']}/{result['patchSha256'][:16]}"
@@ -259,11 +259,10 @@ def publish_evidence(s3, result, before, after, directory):
     page = f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>BMA repair evidence</title><style>body{{font:16px system-ui;background:#101828;color:#f9fafb;max-width:1400px;margin:40px auto;padding:24px}}main{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}}video,img{{width:100%;border-radius:12px}}a{{color:#84caff}}code{{overflow-wrap:anywhere}}</style>
 <h1>Codex browser verification</h1><p>Actual AgentCore Browser interactions for <code>{html.escape(result["eventId"])}</code>.</p>
-<main>{cards}</main><h2>Before / after highlight</h2><p>The GIF is sped up; full videos above preserve capture timing.</p>
-<img src="comparison.gif" alt="Before and after browser verification"><p><a href="comparison.gif" download>Download GIF</a> · <a href="report.json">Verification report and artifact identity</a></p>
+<main>{cards}</main><p><a href="report.json">Verification report and artifact identity</a></p>
 <p>Base revision: <code>{result["baseCommit"]}</code><br>Patch SHA-256: <code>{result["patchSha256"]}</code></p></html>"""
     (destination / "index.html").write_text(page)
-    for name in ("before.mp4", "after.mp4", "before.png", "after.png", "comparison.gif", "report.json", "index.html"):
+    for name in ("before.mp4", "after.mp4", "before.png", "after.png", "report.json", "index.html"):
         path = destination / name
         s3.upload_file(str(path), os.environ["BMA_EVIDENCE_BUCKET"], f"{prefix}/{name}", ExtraArgs={
             "ContentType": mimetypes.guess_type(name)[0] or "application/octet-stream",
@@ -286,8 +285,6 @@ def evidence_markdown(evidence):
         "| Before | After |\n| --- | --- |\n"
         f"| ![Before]({url}/before.png) | ![After]({url}/after.png) |\n"
         f"| [Download before MP4]({url}/before.mp4) | [Download after MP4]({url}/after.mp4) |\n\n"
-        "Before / after highlight (sped up; full MP4s preserve capture timing):\n\n"
-        f"![Browser comparison]({url}/comparison.gif)\n\n"
         + "\n".join(f"- {phase.title()} browser session: `{session}`"
                     for phase, session in evidence["browserSessions"].items())
     )
