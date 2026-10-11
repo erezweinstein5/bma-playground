@@ -7,14 +7,22 @@ sequenceDiagram
   participant S3 as Private artifact bucket
   participant BMA
   participant Runtime as AgentCore Runtime
+  participant Browser as AgentCore Browser
   participant App as CloudFront board
   Presenter->>GH: agent-fix issue or /codex comment
   GH->>S3: Claim event; pin and upload source
+  GH->>App: Publish isolated before preview
   GH->>BMA: Create/reuse issue session; submit request
+  BMA->>Browser: Reproduce issue with recorded browser actions
+  Browser->>S3: Native replay and captured evidence
   BMA->>Runtime: Codex commands inspect, edit, test
   Runtime->>S3: Export source patch and manifest
   GH->>S3: Read patch and validate base/digest/scope
-  GH->>GH: App opens PR; required checks; auto-merge
+  GH->>App: Publish isolated after preview
+  GH->>BMA: Request browser verification of that exact preview
+  BMA->>Browser: Repeat interactions and record observed assertions
+  GH->>App: Publish verified media and report
+  GH->>GH: App opens PR with evidence; required checks; auto-merge
   GH->>App: Publish exact merged revision
   GH->>App: Verify revision and browser acceptance
   GH->>GH: Close issue after successful live verification
@@ -23,10 +31,12 @@ sequenceDiagram
 ## Roles and trust boundaries
 
 - The Actions repair role can create/read BMA sessions, pass only the BMA session
-  role, and access the specific source/patch/state prefixes.
+  role, access the specific source/patch/state prefixes, and publish isolated
+  previews and approved media to the separate evidence bucket.
 - The BMA session role can call the selected model and invoke/stop this Runtime.
 - The Runtime role can pull its ECR image, connect Codex to BMA, read `sources/`,
   and write `repairs/`. It cannot read Actions state or access GitHub credentials.
+  It can start, connect to, and stop sessions on only the demo's custom browser.
 - The Actions deployment role can publish only the web bucket and invalidate
   only this CloudFront distribution. Both OIDC roles trust this repository's
   `main` ref and the STS audience.
@@ -53,6 +63,10 @@ no-ops. An ambiguous or interrupted mutation is recorded as `needs_inspection`;
 it is not automatically submitted again. Inspect the Actions transcript, BMA
 session/items, and source/patch objects before posting a new `/codex` request.
 No automatic model repair retries are currently configured.
+
+Browser evidence is mandatory. The adapter checks before/after preview digests,
+recording hashes, bounded media content, observed outcomes, and actual browser
+actions/assertions before publishing a PR. See [browser evidence](browser-evidence.md).
 
 The adapter opens SSE before submitting input, waits for a new successful
 terminal turn event, and saves durable output items. Acknowledgement or `idle`

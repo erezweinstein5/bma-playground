@@ -15,6 +15,8 @@ Hosting: https://dvf0au2tge8qd.cloudfront.net
 | `BMA_MODEL` | `openai.gpt-5.6-luna` |
 | `BMA_RUNTIME_ARN`, `BMA_SESSION_ROLE_ARN` | Execution environment and BMA role |
 | `BMA_ARTIFACT_BUCKET` | Private source, patch, and durable state bucket |
+| `BMA_BROWSER_ID` | Custom AgentCore Browser with native recording enabled |
+| `BMA_EVIDENCE_BUCKET` | Private origin for preview builds and public PR media |
 | `WEB_BUCKET`, `DISTRIBUTION_ID`, `APP_URL` | Hosting outputs |
 | `GH_APP_CLIENT_ID` | Installed GitHub App identity |
 
@@ -30,6 +32,11 @@ and revoked by the token action afterward.
 Run **Verify BMA Runtime** manually to verify the Actions caller role and a real
 Codex command without opening an issue or modifying the board. It creates and
 deletes its own disposable BMA session.
+
+Run **Rehearse recorded browser repair** to exercise the full browser evidence
+flow against historical broken source without resetting production. Its job
+summary links to the media. See [browser evidence](browser-evidence.md) for live
+viewing and the contents of the PR evidence section.
 
 ## Presenter rehearsal
 

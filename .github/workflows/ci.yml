@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r pipeline/requirements.txt
-      - run: python -m unittest discover -s tests -p test_pipeline.py -v
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
   scope:
     name: Repair scope
     if: github.event_name == 'pull_request'

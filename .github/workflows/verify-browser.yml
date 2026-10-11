@@ -1,0 +1,52 @@
+name: Rehearse recorded browser repair
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: bma-repair-main
+  cancel-in-progress: false
+jobs:
+  rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r pipeline/requirements.txt
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        with:
+          role-to-assume: ${{ vars.AWS_REPAIR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-duration-seconds: 3600
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+      - name: Reproduce, repair, and record isolated historical source
+        env:
+          BMA_ARTIFACT_BUCKET: ${{ vars.BMA_ARTIFACT_BUCKET }}
+          BMA_MODEL: ${{ vars.BMA_MODEL }}
+          BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
+          BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+          BMA_BROWSER_ID: ${{ vars.BMA_BROWSER_ID }}
+          BMA_EVIDENCE_BUCKET: ${{ vars.BMA_EVIDENCE_BUCKET }}
+          BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
+        run: python pipeline/rehearse_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-rehearsal-${{ github.run_id }}
+          path: |
+            artifacts/
+            !artifacts/**/browser-evidence/before/**
+            !artifacts/**/browser-evidence/after/**
+          retention-days: 7
+          compression-level: 0

@@ -14,7 +14,7 @@ jobs:
   repair:
     if: contains(github.event.issue.labels.*.name, 'agent-fix') && !github.event.issue.pull_request
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +58,9 @@ jobs:
           BMA_MODEL: ${{ vars.BMA_MODEL }}
           BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
           BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+          BMA_BROWSER_ID: ${{ vars.BMA_BROWSER_ID }}
+          BMA_EVIDENCE_BUCKET: ${{ vars.BMA_EVIDENCE_BUCKET }}
+          BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
           ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
         run: python pipeline/repair.py "$ASSIGNMENT_PATH/assignment.json"
       - name: Authenticate the GitHub App after patch validation
@@ -81,5 +84,10 @@ jobs:
         if: always() && steps.assignment.outputs.prepared == 'true'
         with:
           name: repair-${{ steps.assignment.outputs.event_id }}
-          path: ${{ steps.assignment.outputs.artifact_path }}
+          path: |
+            ${{ steps.assignment.outputs.artifact_path }}
+            !${{ steps.assignment.outputs.artifact_path }}/browser-evidence/before/**
+            !${{ steps.assignment.outputs.artifact_path }}/browser-evidence/after/**
           retention-days: 7
+          # Large raw captures remain in private S3. PR media has stable CDN URLs.
+          compression-level: 0
