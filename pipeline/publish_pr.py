@@ -1,6 +1,7 @@
 """Publish an already validated patch, then request check-gated auto-merge."""
 import argparse
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import subprocess
 import sys
 from github import api
 from patch_boundary import canonical_patch
+from browser_evidence import evidence_markdown
 
 
 def main():
@@ -21,6 +23,8 @@ def main():
         raise ValueError("Unexpected repository or branch")
     # Validate again at the publication boundary, before adding GitHub authentication.
     patch = canonical_patch(Path.cwd(), base, args.result.with_name("verified.patch").read_bytes())
+    if hashlib.sha256(patch).hexdigest() != result.get("patchSha256") or not result.get("browserEvidence"):
+        raise ValueError("Browser evidence and validated patch identity are required for publication")
     if api("GET", f"/repos/{repo}/git/ref/heads/main")["object"]["sha"] != base:
         raise RuntimeError("Main changed during the repair; submit a new /codex request from current main")
     subprocess.run(["git", "checkout", "-b", branch, base], check=True)
@@ -28,6 +32,7 @@ def main():
     subprocess.run(["git", "-c", "user.name=bma-playground[bot]",
                     "-c", "user.email=bma-playground[bot]@users.noreply.github.com",
                     "commit", "-m", f'Repair application for issue #{result["issueNumber"]}'], check=True)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
     token = base64.b64encode(("x-access-token:" + os.environ["GH_TOKEN"]).encode()).decode()
     environment = {**os.environ, "GIT_CONFIG_COUNT": "1",
                    "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
@@ -45,8 +50,12 @@ def main():
         "before closing the issue.\n\n"
         f'BMA session: `{result["sessionId"]}`\n'
         f'Turn: `{result["turnId"]}`\n'
+        f'Browser verification turn: `{result["verificationTurnId"]}`\n'
+        f'Tested base: `{base}`\n'
+        f'PR revision: `{head}`\n'
+        f'Patch SHA-256: `{result["patchSha256"]}`\n'
         f'<!-- bma-playground:{json.dumps(metadata, separators=(",", ":"))} -->'
-    )
+    ) + evidence_markdown(result["browserEvidence"])
     pr = api("POST", f"/repos/{repo}/pulls", {
         "title": f'Repair application for issue #{result["issueNumber"]}',
         "head": branch, "base": "main", "body": body})

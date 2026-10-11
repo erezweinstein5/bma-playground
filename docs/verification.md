@@ -40,3 +40,63 @@
 - Full GitHub issue -> PR -> automatic merge -> repair deployment has not been
   exercised. No repair issue or repair PR was opened. The live board deliberately
   retains the defect for the first user-triggered demonstration.
+# Recorded AgentCore Browser verification — 2026-10-11
+
+Implemented and exercised the new browser flow against historical broken source
+`090e13fc68d58bf4daf9cdb2acb3006ca5f73a5a`. Production stayed repaired.
+
+- Custom browser: `bma_playground_browser-5PiWuaeYxw`, recording enabled, READY.
+- Runtime version 3; image digest
+  `sha256:4e4cf3b2e81c24baf26123ead07147ba8e18685e658c45e8ef565ef99982a7bc`.
+- Native ARM64 CodeBuild:
+  `bma-playground-runtime:b6240fc9-fb36-4dfb-9bd4-2cd21a726015`, SUCCEEDED.
+- BMA session: `sess_aeawsylekvimw2usw7p6m7m2xeyu42oz574py`.
+- Repair turn: `turn_4cpy5c2hzzgzmr3bqrhw`.
+- Verification turn: `turn_ddcvaz6volkijkix7ald`.
+- Before browser: `01M4N34MYSCV5Q9TEN528YP0K6`, 55 frames, 14.4764 seconds.
+  Codex selected Done and observed 33% / 2 of 6; reload remained broken.
+- After browser: `01M4N36MAVYEYY1Z2WNDYM5MEM`, 121 frames, 24.5701 seconds.
+  Codex verified menu completion, 50% / 3 of 6, refresh persistence, and drag
+  completion after a reset.
+- BMA durable MCP results were matched to the preview URL, browser session,
+  capture digest, source digest, event, phase, and outcome for both recordings.
+- The adapter produced MP4s, PNGs, a GIF, a JSON report, and a watch page:
+  https://dvf0au2tge8qd.cloudfront.net/evidence/probe-browser-20261011a/a404d0417c04f287/index.html
+
+This was a new Codex repair rehearsal, not a recording of issue #1's original
+execution. It created no repair PR and did not merge or deploy application
+changes. The new PR publisher embeds the evidence for subsequent issue repairs.
+
+## Drag-first recording — 2026-10-11
+
+The replacement rehearsal starts both recordings with the same paced native
+mouse drag. Its pointer overlay follows real input events. The PR and watch page
+contain MP4s and screenshots without a duplicate GIF.
+
+- Runtime version 4, READY; image digest
+  `sha256:a84ca2a0509424422427fdd6400e0dfc4ebc0a7c4cb714372686b167760c3194`.
+- CodeBuild `bma-playground-runtime:d2561889-7c28-4d65-a171-66997b67bdd3`,
+  SUCCEEDED; Runtime CloudFormation update completed.
+- BMA session: `sess_aeawsylerz2mw2ua4fnkpyxbq5ri7yro2bfoo`.
+- Repair turn: `turn_6b7nqz7ff2adzjjnbeca`.
+- Verification turn: `turn_h74xlr56u7euurptftk7`.
+- Before browser: `01M4NBZTGMJPFSZ42NXQZT3V7V`, 85 frames, 20.7109 seconds.
+  Dragging to Done left the card in In progress. Exact assertions confirmed
+  “The card stayed in its current column.”, 2 of 6 tasks, and 33%.
+- After browser: `01M4NGSDRNB6RHF8BB5PP71YZF`, 158 frames, 40.9106 seconds.
+  The first drag moved the card to Done with 3 of 6 tasks and 50%. Codex then
+  verified persistence after reload and status-menu completion after reset.
+- All recorded text assertions passed. An initially ambiguous heading selector
+  was rejected by the browser tool and corrected before recording its assertion.
+- Event streams disconnected. Completed turns were reconciled from durable BMA
+  items without resubmitting either turn; their exact browser captures and patch
+  passed the existing publication validators. The transcript explicitly labels
+  reconciled completion rather than inventing a terminal SSE event.
+- 22 Python pipeline/evidence tests passed, including recovery without duplicate
+  submission and rejection of idle state or an old final answer as completion.
+- Both MP4s were visually inspected during the drag and after release.
+- Replacement evidence:
+  https://dvf0au2tge8qd.cloudfront.net/evidence/probe-browser-drag-20261011c/a404d0417c04f287/index.html
+
+This used the same historical broken source and did not change production.
+PR #3 remains separate from the recorded application repair and is not merged.

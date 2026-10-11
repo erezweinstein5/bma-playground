@@ -69,6 +69,34 @@ class BmaClient:
                 return result
             after = page["last_id"]
 
+    def reconcile_turn(self, session_id, previous_turns, deadline, transcript):
+        """Recover a disconnected stream without submitting the message again."""
+        while time.monotonic() < deadline:
+            current = self.get_session(session_id)
+            if current.get("error") or current["status"] == "failed":
+                raise RuntimeError("BMA session failed while reconciling the stream")
+            if current["status"] == "idle":
+                items = self.items(session_id)
+                new = [item for item in items
+                       if item.get("turn_id") and item["turn_id"] not in previous_turns]
+                turns = {item["turn_id"] for item in new}
+                finals = [item for item in new if item.get("type") == "message"
+                          and item.get("role") == "assistant"
+                          and item.get("phase") == "final_answer"
+                          and item.get("status") == "completed"]
+                if len(turns) != 1 or not finals or any(
+                        item.get("status") in {"in_progress", "queued", "incomplete"}
+                        for item in new):
+                    raise RuntimeError("Disconnected stream has no unambiguous completed turn in durable items")
+                result = {"turnId": turns.pop(), "completionSource": "durable_items",
+                          "finalMessageId": finals[-1]["id"]}
+                with open(transcript, "a") as output:
+                    output.write(json.dumps({"type": "client.turn.reconciled", **result}) + "\n")
+                print(f"Reconciled completed turn {result['turnId']} from durable items.", flush=True)
+                return result
+            time.sleep(5)
+        raise TimeoutError("Turn exceeded the pipeline deadline during stream reconciliation")
+
     def run_turn(self, session_id, prompt, transcript):
         """Subscribe before sending. Correlate completion with a new turn ID."""
         path = PREFIX + "/" + quote(session_id, safe="") + "/events"
@@ -84,20 +112,23 @@ class BmaClient:
                 pass
             print("Input accepted; waiting for a completed turn.", flush=True)
             with open(transcript, "w") as output:
-                for event in sse_events(stream.iter_lines(chunk_size=1)):
-                    output.write(json.dumps(event) + "\n")
-                    output.flush()
-                    kind = event.get("type", "")
-                    if time.monotonic() > deadline:
-                        raise TimeoutError("Turn exceeded the pipeline deadline; inspect before retrying")
-                    if kind == "error" or kind.endswith("environment.failed"):
-                        raise RuntimeError("BMA execution failed: " + json.dumps(event)[:2000])
-                    if kind in TERMINAL:
-                        turn_id = (event.get("turn") or {}).get("id") or event.get("turn_id")
-                        if not turn_id or turn_id in previous_turns:
-                            continue
-                        if kind != "agent.session.turn.completed":
-                            raise RuntimeError("BMA turn did not complete: " + json.dumps(event)[:2000])
-                        print(f"Completed turn {turn_id}", flush=True)
-                        return {"turnId": turn_id, "terminalEvent": kind}
-        raise RuntimeError("Stream disconnected without a new successful terminal event; inspect durable items")
+                try:
+                    for event in sse_events(stream.iter_lines(chunk_size=1)):
+                        output.write(json.dumps(event) + "\n")
+                        output.flush()
+                        kind = event.get("type", "")
+                        if time.monotonic() > deadline:
+                            raise TimeoutError("Turn exceeded the pipeline deadline; inspect before retrying")
+                        if kind == "error" or kind.endswith("environment.failed"):
+                            raise RuntimeError("BMA execution failed: " + json.dumps(event)[:2000])
+                        if kind in TERMINAL:
+                            turn_id = (event.get("turn") or {}).get("id") or event.get("turn_id")
+                            if not turn_id or turn_id in previous_turns:
+                                continue
+                            if kind != "agent.session.turn.completed":
+                                raise RuntimeError("BMA turn did not complete: " + json.dumps(event)[:2000])
+                            print(f"Completed turn {turn_id}", flush=True)
+                            return {"turnId": turn_id, "terminalEvent": kind}
+                except (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError):
+                    print("Event stream disconnected; checking durable results without resubmitting.", flush=True)
+        return self.reconcile_turn(session_id, previous_turns, deadline, transcript)
