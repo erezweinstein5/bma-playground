@@ -21,7 +21,8 @@ REPO, EVENT, ORIGIN = "demo/playground", "issue-feature-123", "https://example.i
 PATCH = b"candidate patch"
 
 
-def fixture(root):
+def fixture(root, ids=None, journey_ids=None):
+    ids = sorted(ids) if ids else None
     plan = {
         "schemaVersion": 1, "title": "Workload", "problem": "Uneven work", "approach": "Balance effort",
         "assumptions": [], "questions": [], "nonGoals": [],
@@ -37,10 +38,47 @@ def fixture(root):
     issue = {"id": 123, "number": 7, "title": "Team Workload",
              "body": "\n".join(f"AC-{n}: Verify meaningful observable behavior." for n in range(1, 8)),
              "state": "open", "labels": [{"name": "agent-feature"}]}
+    journey = None
+    if ids:
+        label = "Task search" if len(ids) == 2 else "Compact display"
+        selector = "#search" if len(ids) == 2 else "#compact"
+        plan.update(schemaVersion=2, title=label,
+                    requirements=[{"id": ref, "behavior": f"{label} behavior {ref}",
+                                   "verification": "Observe the control and its saved state"} for ref in ids],
+                    uiContract=f"{selector} is the visible {label} control. "
+                               "#setting exposes its current value and restores it after reload.")
+        plan["tasks"][0]["acceptanceIds"] = ids
+        plan["screens"] = [{**plan["screens"][0], "kind": "settings", "acceptanceIds": ids}]
+        journey = [
+            {"action": "assert_text", "selector": "#setting", "expected": "Default",
+             "description": "Observe initial state", "acceptanceIds": ids},
+            {"action": "click", "selector": selector, "description": "Change setting", "acceptanceIds": ids},
+            {"action": "assert_text", "selector": "#setting", "expected": label,
+             "description": "Observe changed state", "acceptanceIds": ids},
+            {"action": "reload", "description": "Reload the application", "acceptanceIds": ids},
+            {"action": "assert_text", "selector": "#setting", "expected": label,
+             "description": "Observe saved state", "acceptanceIds": ids},
+        ]
+        if journey_ids is not None:
+            for step in journey:
+                step["acceptanceIds"] = journey_ids
+        plan["browserJourney"] = journey
+        issue.update(title=label, body=f"Provide a visible {label.lower()} control and clearly show the "
+                     "selected setting. Persist the choice after a reload so people can continue their work.")
     event = {"action": "opened", "sender": {"type": "User", "login": "Operator"},
              "repository": {"full_name": REPO}, "issue": issue}
     prd = f'# {issue["title"]}\n\n{issue["body"]}\n'
     spec, contract = b"frozen acceptance spec", b"frozen UI contract"
+    cases = [{"title": f"case {n} [AC-{n % 7 + 1}]", "purpose": "Behavior",
+              "acceptanceIds": [f"AC-{n % 7 + 1}"]} for n in range(10)]
+    if ids:
+        cases = [{"title": f"visible setting [{ref}]", "purpose": "Observe the setting",
+                  "acceptanceIds": [ref]} for ref in ids]
+        spec = ("import { test, expect } from '@playwright/test';\n" + "\n".join(
+            f"test({json.dumps(row['title'])}, async ({{page}}) => {{\n"
+            "  await page.goto('/');\n  await expect(page.locator('#setting')).toBeVisible();\n});"
+            for row in cases)).encode()
+        contract = plan["uiContract"].encode()
     hashes = {"patchSha256": publisher.digest(PATCH),
               "planSha256": publisher.digest(publisher.canonical_json(plan)),
               "prdSha256": publisher.digest(prd.encode()),
@@ -48,21 +86,25 @@ def fixture(root):
     assignment = {"schemaVersion": 1, "kind": "team-workload-v1", "repository": REPO,
                   "issueNumber": 7, "eventId": EVENT, "actor": "Operator", "baseCommit": BASE,
                   "title": issue["title"], "prd": prd, "prdSha256": hashes["prdSha256"], "status": "prepared"}
+    if ids:
+        assignment.update(schemaVersion=2, kind="prd-feature-v1")
     provenance = {"schemaVersion": 1, "eventId": EVENT, "baseCommit": BASE, "status": "planned",
                   "sessionId": "sess_plan", "turnId": "turn_plan",
                   **{key: hashes[key] for key in ("planSha256", "prdSha256")}}
-    cases = [{"title": f"case {n} [AC-{n % 7 + 1}]", "purpose": "Behavior",
-              "acceptanceIds": [f"AC-{n % 7 + 1}"]} for n in range(10)]
     acceptance = {"schemaVersion": 1, "eventId": EVENT, "baseCommit": BASE,
                   **{key: value for key, value in hashes.items() if key != "patchSha256"},
                   "sessionId": "sess_acceptance", "turnId": "turn_acceptance",
                   "status": "authored-not-executed", "cases": cases}
+    binding = ({"acceptanceIds": ids, "browserJourney": journey,
+                "browserJourneySha256": publisher.digest(publisher.canonical_json(journey))} if ids else {})
+    if ids:
+        acceptance.update(schemaVersion=2, **binding)
     checks = {"schemaVersion": 1, "passed": True, "status": "passed", "errors": [],
               "baseCommit": BASE, "patchSha256": hashes["patchSha256"],
               "acceptanceSha256": hashes["acceptanceSha256"],
               "actualAcceptanceSha256": hashes["acceptanceSha256"], "infrastructureFailure": False,
-              "executedFeatureCases": 10, "executedProjectCases": 10,
-              "coveredAcceptanceIds": sorted(publisher.ACS),
+              "executedFeatureCases": len(cases), "executedProjectCases": len(cases),
+              "coveredAcceptanceIds": ids or sorted(publisher.ACS),
               "commands": [{"name": name, "status": "passed", "exitCode": 0, "timedOut": False}
                            for name in sorted(publisher.REQUIRED_COMMANDS)],
               "featureCases": [{"title": row["title"], "acceptanceIds": row["acceptanceIds"],
@@ -79,8 +121,10 @@ def fixture(root):
                                     "patchKey": f"repairs/{EVENT}-implementation/repair.patch"},
                  "implementationSessionId": "sess_implement", "implementationTurnId": "turn_implement",
                  "reviewSessionId": "sess_review", "reviewTurnId": "turn_review"}
+    if ids:
+        candidate.update(browserJourneySha256=binding["browserJourneySha256"])
     for folder in ("planning", "acceptance", "browser"):
-        (root / folder).mkdir()
+        (root / folder).mkdir(exist_ok=True)
     (root / "planning/prd.md").write_text(prd)
     (root / "planning/index.html").write_text("<html>Frozen design viewer</html>")
     (root / "acceptance/workload.acceptance.spec.js").write_bytes(spec)
@@ -110,6 +154,9 @@ def fixture(root):
                action("reload"), action("click", browser.WORKLOAD),
                assertion(browser.LOADS["Maya"], "8 / 8 points"),
                assertion(browser.LOADS["Erez"], "8 / 8 points")]
+    if ids:
+        actions = [(assertion(step["selector"], step["expected"]) if step["action"] == "assert_text"
+                    else action(step["action"], step.get("selector", ""))) for step in journey]
     capture = {key: preview[key] for key in ("eventId", "phase", "sourceSha256")}
     capture.update({"outcome": "passed", "browserSessionId": "browser_session",
                     "previewUrl": preview["url"], "captureSha256": "e" * 64,
@@ -135,7 +182,7 @@ def fixture(root):
     items += [call("browser_finish", {"outcome": "passed", "summary": capture["summary"]}, capture),
               {"type": "message", "role": "assistant", "phase": "final_answer",
                "status": "completed", "turn_id": "turn_browser", "content": []}]
-    common = {"schemaVersion": 1, "passed": True, "taskKind": "feature",
+    common = {"schemaVersion": 2 if ids else 1, "passed": True, "taskKind": "feature", **binding,
               "eventId": EVENT, "baseCommit": BASE, **hashes,
               "candidateSha256": publisher.digest(publisher.canonical_json(candidate))}
     evidence_url = f'{ORIGIN}/evidence/{EVENT}/{hashes["patchSha256"]}/feature'
@@ -149,7 +196,7 @@ def fixture(root):
                   ("implementationSessionId", "implementationTurnId", "reviewSessionId", "reviewTurnId")},
               "bmaSessionId": "sess_browser", "verificationTurnId": "turn_browser",
               "design": design, "preview": preview, "phases": {"after": capture},
-              "verifiedObservations": browser.validate_feature_actions(actions),
+              "verifiedObservations": browser.validate_feature_actions(actions, journey=journey),
               "artifacts": {name: {"url": evidence_url + "/" + name, "sha256": "1" * 64}
                             for name in ("after.mp4", "after.png")}}
     documents = {"assignment.json": assignment, "event.json": event, "candidate.json": candidate,
@@ -317,9 +364,102 @@ class PublicationTests(unittest.TestCase):
             event.update({"action": action, "label": {"name": "agent-feature"}})
             actual = json.loads(subprocess.check_output(["node", "--input-type=module", "-e", script],
                                                        input=json.dumps(event).encode(), timeout=15))
-            self.assertEqual(actual, self.documents["assignment.json"])
+            self.assertEqual(actual, {**self.documents["assignment.json"],
+                                      "schemaVersion": 2, "kind": "prd-feature-v1"})
             self.assertEqual(publisher.authorized_assignment(actual, event, "issues", "operator", REPO),
                              "codex/issue-7-issue-feature-123")
+
+    def test_unrelated_generic_features_bind_plan_criteria_journey_and_manifest(self):
+        for ids in (["AC-1", "AC-2"], ["AC-3", "AC-8", "AC-12"]):
+            with self.subTest(ids=ids):
+                self.documents = fixture(self.root, ids)
+                context = self.validate()
+                manifest = self.documents["acceptance/manifest.json"]
+                self.assertEqual(set(context["metadata"]["acceptanceIds"]), set(ids))
+                self.assertEqual(context["metadata"]["featureKind"], "prd-feature-v1")
+                self.assertEqual(context["metadata"]["browserJourneySha256"],
+                                 manifest["browserJourneySha256"])
+                self.assertEqual(context["metadata"]["acceptanceManifestSha256"],
+                                 publisher.digest(publisher.canonical_json(manifest)))
+                self.assertEqual(context["metadata"]["browserReportSha256"],
+                                 publisher.digest(publisher.canonical_json(self.documents["browser/report.json"])))
+                self.assertEqual(context["metadata"]["browserReportSha256"],
+                                 context["identity"]["browserReportSha256"])
+                self.assertEqual(context["caseCount"], len(ids))
+                self.assertNotIn("Team Workload", publisher.title(context))
+                self.assertEqual(context["identity"]["planSha256"],
+                                 publisher.digest(publisher.canonical_json(self.documents["planning/plan.json"])))
+        self.network_guard.assert_not_called()
+
+    def test_generic_schema_downgrades_and_missing_candidate_bindings_fail(self):
+        self.documents = fixture(self.root, ["AC-1", "AC-2"])
+        for path, field, value in (
+            ("planning/plan.json", "schemaVersion", 1),
+            ("acceptance/manifest.json", "schemaVersion", 1),
+            ("browser/result.json", "schemaVersion", 1),
+            ("browser/report.json", "schemaVersion", 1),
+            ("assignment.json", "kind", "team-workload-v1"),
+            ("assignment.json", "schemaVersion", 1),
+            ("candidate.json", "acceptanceIds", ["AC-1"]),
+            ("candidate.json", "browserJourneySha256", "0" * 64),
+            ("candidate.json", "acceptanceManifestSha256", "0" * 64),
+            ("candidate.json", "checks.coveredAcceptanceIds", ["AC-1"]),
+            ("candidate.json", "checks.featureCases.0.outcomes", ["passed", "passed"]),
+            ("candidate.json", "checks.featureCases.0.executed", False),
+        ):
+            self.restore()
+            self.change(path, field, value)
+            with self.subTest(path=path, field=field), self.assertRaises(ValueError):
+                self.validate()
+
+    def test_generic_browser_journey_may_cover_only_the_primary_visual_criteria(self):
+        self.documents = fixture(self.root, ["AC-1", "AC-2", "AC-3"], journey_ids=["AC-1"])
+        context = self.validate()
+        self.assertEqual(set(context["metadata"]["acceptanceIds"]), {"AC-1", "AC-2", "AC-3"})
+        self.assertEqual(context["caseCount"], 3)
+        self.assertEqual(self.documents["browser/report.json"]["verifiedObservations"], ["AC-1"])
+
+    def test_self_consistent_generic_journey_cannot_replace_the_plan(self):
+        self.documents = fixture(self.root, ["AC-1", "AC-2"])
+        for kind in ("journey", "criteria"):
+            documents = copy.deepcopy(self.documents)
+            for path in ("candidate.json", "acceptance/manifest.json",
+                         "browser/result.json", "browser/report.json"):
+                value = documents[path]
+                if kind == "journey":
+                    journey = copy.deepcopy(documents["planning/plan.json"]["browserJourney"])
+                    journey[1]["selector"] = "#unrelated-feature"
+                    if path != "candidate.json":
+                        value["browserJourney"] = journey
+                    value["browserJourneySha256"] = publisher.digest(publisher.canonical_json(journey))
+                else:
+                    value["acceptanceIds"] = ["AC-1"]
+            candidate_sha = publisher.digest(publisher.canonical_json(documents["candidate.json"]))
+            for path in ("browser/result.json", "browser/report.json"):
+                documents[path]["candidateSha256"] = candidate_sha
+            for path, value in documents.items():
+                (self.root / path).write_text(json.dumps(value))
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "pinned plan"):
+                self.validate()
+
+    def test_generic_real_browser_trace_must_execute_its_plan_steps(self):
+        self.documents = fixture(self.root, ["AC-1", "AC-2"])
+        self.change("browser/items.json", "items.2.arguments.selector", "#workload")
+        with self.assertRaises(ValueError):
+            self.validate()
+
+    def test_legacy_artifacts_cannot_carry_generic_bindings(self):
+        for path, field, value in (
+            ("candidate.json", "browserJourneySha256", "0" * 64),
+            ("candidate.json", "featureKind", "prd-feature-v1"),
+            ("acceptance/manifest.json", "acceptanceIds", sorted(publisher.ACS)),
+            ("browser/result.json", "browserJourney", []),
+            ("browser/report.json", "browserJourneySha256", "0" * 64),
+        ):
+            self.restore()
+            self.change(path, field, value)
+            with self.subTest(path=path, field=field), self.assertRaises(ValueError):
+                self.validate()
 
     def test_unauthorized_or_replayed_intake_is_rejected(self):
         cases = [("event.json", "sender.login", "intruder"), ("event.json", "sender.type", "Bot"),

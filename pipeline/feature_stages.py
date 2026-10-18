@@ -13,6 +13,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bma_client import BmaClient
+from feature_contract import LEGACY_AC_IDS, validate_acceptance_ids
 
 
 def digest(data):
@@ -219,6 +220,31 @@ def source_archive(base):
 
 
 def acceptance_prompt(prd, plan, contract):
+    if plan["schemaVersion"] == 2:
+        return (
+            "You are the independent acceptance author, before implementation exists. "
+            "Inspect the pinned baseline and existing tests. Write one Playwright spec "
+            "covering every PRD requirement using the observable UI contract below. "
+            "Do not implement the feature, edit files, or execute generated tests. "
+            "Return ONLY JSON with schemaVersion=2, acceptanceIds (all plan IDs), spec "
+            "(JavaScript source), and cases (array of {title, acceptanceIds, purpose}). "
+            "Choose 1-60 substantive cases appropriate to the feature, including relevant "
+            "negative paths, persistence, accessibility and regression requirements. "
+            "Isolate each case with beforeEach reset. Include its exact [AC-N] tags in "
+            "each title; cases titles must exactly match executable test titles. "
+            "Use only @playwright/test. No skip/fixme/only, retries, expected failures, "
+            "arbitrary sleeps, source inspection, request/fetch, filesystem/process "
+            "access, or conditional early-return escape paths. Assert observable behavior "
+            "through actual browser actions. Prefer stable scoped UI hooks from the "
+            "contract; use exact accessible names to avoid substring collisions. "
+            "Do not invent requirements or impose stronger semantics than the PRD and "
+            "contract. A test count is not coverage: every supplied criterion must have "
+            "meaningful assertions. Keyboard behavior belongs in these Playwright tests "
+            "even though the recorded native browser journey supports fewer actions. "
+            "The controller freezes this result before implementation; the implementer "
+            "cannot change it.\nPRD:\n" + prd + "\nPLANNED REQUIREMENTS:\n" +
+            json.dumps(plan["requirements"]) + "\nUI CONTRACT:\n" + contract
+        )
     return (
         "You are the independent acceptance author, before implementation exists. "
         "Inspect the pinned baseline and existing tests. Write one Playwright acceptance "
@@ -249,22 +275,32 @@ def acceptance_prompt(prd, plan, contract):
     )
 
 
-def validate_acceptance(value):
-    if value.get("schemaVersion") != 1:
+def validate_acceptance(value, required_ids=None):
+    generic = required_ids is not None
+    ids = validate_acceptance_ids(required_ids) if generic else LEGACY_AC_IDS
+    if (not isinstance(value, dict) or type(value.get("schemaVersion")) is not int
+            or value["schemaVersion"] != (2 if generic else 1)):
         raise ValueError("Invalid acceptance schema")
+    if generic and validate_acceptance_ids(value.get("acceptanceIds")) != ids:
+        raise ValueError("Acceptance IDs differ from the pinned plan")
     spec, cases = value.get("spec"), value.get("cases")
-    if not isinstance(spec, str) or not 1000 <= len(spec.encode()) <= 80_000:
+    if not isinstance(spec, str) or not (100 if generic else 1000) <= len(spec.encode()) <= 80_000:
         raise ValueError("Acceptance spec must be bounded, substantive source")
-    if not isinstance(cases, list) or not 10 <= len(cases) <= 30:
-        raise ValueError("Acceptance bundle needs 10-30 described cases")
+    low, high = (1, 60) if generic else (10, 30)
+    if not isinstance(cases, list) or not low <= len(cases) <= high:
+        raise ValueError(f"Acceptance bundle needs {low}-{high} described cases")
     blocked = (r"\btest\s*\.\s*(skip|fixme|only|fail|slow|setTimeout)\b",
                r"\b(?:describe|test)\s*\.\s*configure\b", r"\bretries\s*:",
                r"\b(?:require|fetch|eval|Function)\s*\(", r"\bimport\s*\(",
                r"\bprocess\s*\.", r"\b(?:readFile|writeFile|execSync|spawn|waitForTimeout)\s*\(",
-               r"\b(?:route|request)\s*\.", r"\bpage\s*\.\s*route\s*\(")
+               r"\broute\s*\.", r"\bpage\s*\.\s*route\s*\(")
+    # Browser Request metadata is a passive observation. APIRequestContext HTTP
+    # methods and route interception remain forbidden. Legacy policy is unchanged.
+    blocked += ((r"\brequest\s*\.(?!\s*(?:url|method|resourceType|isNavigationRequest)\s*\()"
+                 if generic else r"\brequest\s*\."),)
     if any(re.search(pattern, spec) for pattern in blocked):
         raise ValueError("Acceptance spec uses a forbidden execution or skip mechanism")
-    if re.search(r"name\s*:\s*['\"]Board['\"]", spec):
+    if not generic and re.search(r"name\s*:\s*['\"]Board['\"]", spec):
         raise ValueError("Use the stable data-view hook for Board; fuzzy name matching is ambiguous")
     imports = re.findall(r"\bfrom\s*['\"]([^'\"]+)['\"]", spec)
     if imports != ["@playwright/test"]:
@@ -272,16 +308,19 @@ def validate_acceptance(value):
     titles = set()
     covered = set()
     for case in cases:
+        if not isinstance(case, dict):
+            raise ValueError("Invalid acceptance case identity")
         title = case.get("title", "")
         refs = case.get("acceptanceIds", [])
-        if (not isinstance(title, str) or len(title) > 250 or title in titles
+        if (not isinstance(title, str) or not title.strip() or len(title) > 250 or title in titles
                 or not isinstance(refs, list) or not refs
-                or not set(refs) <= {f"AC-{n}" for n in range(1, 8)}
-                or any(f"[{ref}]" not in title for ref in refs)
-                or not case.get("purpose")):
+                or any(not isinstance(ref, str) for ref in refs)
+                or len(set(refs)) != len(refs) or not set(refs) <= ids
+                or set(re.findall(r"\[(AC-[1-9][0-9]*)\]", title)) != set(refs)
+                or not isinstance(case.get("purpose"), str) or not case["purpose"].strip()):
             raise ValueError("Invalid acceptance case identity")
         titles.add(title)
         covered.update(refs)
-    if covered != {f"AC-{n}" for n in range(1, 8)}:
+    if covered != ids:
         raise ValueError("Acceptance bundle omits PRD criteria")
     return value

@@ -13,28 +13,30 @@ import sys
 import tempfile
 
 from design_board import canonical_json, validate_plan
-from feature_stages import FeatureStages, digest, final_json, source_archive
+from feature_contract import (LEGACY_AC_IDS, plan_contract, plan_journey, requirement_ids,
+                              validate_acceptance_ids, validate_planning_identity)
+from feature_stages import FeatureStages, digest, final_json, source_archive, validate_acceptance
 from patch_boundary import canonical_patch, git
 
 
 def implementation_prompt(prd, plan, contract, acceptance, export):
     return (
-        "Implement the Team Workload feature completely from this PRD and the visual "
+        "Implement the feature completely from this PRD and the visual "
         "proposal. Read AGENTS.md and the current app. Change src/ only. The controller "
         "owns the frozen acceptance bundle and will run it independently; do not change "
         "tests, package files, workflows, infrastructure, image helpers, or credentials. "
         "The design's test/document work items are delivered as external versioned "
         "evidence by the controller; this candidate contains only application code. "
-        "Preserve existing board appearance and behavior, add the Workload view using "
-        "the generated design, and obey the stable UI contract. Extend the existing "
+        "Preserve existing behavior except where the PRD requires a change. Use "
+        "the generated design and obey its observable UI contract. Extend the existing "
         "readable functions and markup instead of replacing the app with minified code. "
-        "Keep existing icons, notes, status controls, empty states, announcements, and "
-        "search copy. Keep Reset usable; do not hide or rename valid controls to work "
-        "around a test selector. Ensure only the selected view is actually visible "
-        "under the real CSS cascade, not merely marked hidden in markup. "
+        "Preserve existing controls, content and accessibility unless the PRD explicitly "
+        "requires changing them. Do not hide or rename valid controls merely to work "
+        "around a test selector. Verify the intended visibility and layout under the "
+        "real CSS cascade rather than relying on markup attributes alone. "
         "If a test request contradicts the product contract, report that contradiction "
-        "rather than adding behavior solely to satisfy a faulty test. Include robust migration, "
-        "derived canonical totals, keyboard focus preservation, and invalid-input recovery. "
+        "rather than adding behavior solely to satisfy a faulty test. Address migration, "
+        "derived data, keyboard focus and input validation where required by the PRD. "
         "Do not use shortcuts that merely expose fixture text or bypass behavior. "
         "Run npm ci, npm test and npm run build. You may run additional focused ephemeral "
         "checks, but do not alter existing tests. Do not launch a local browser; the "
@@ -55,7 +57,7 @@ def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sh
         "contains the candidate application changes; its baseline identity is in the "
         "preparation metadata. Inspect source with file/line references. Read-only task: "
         "do not edit or export code, run network calls, read credentials, or access GitHub. "
-        "Review the PRD, design, migration, canonical totals, accessible validation/focus, "
+        "Review the PRD, design, applicable data migration, accessible validation/focus, "
         "regressions and the independent acceptance spec/results. Passing tests alone are "
         "not approval. The candidate intentionally contains src/ only. Its acceptance "
         "bundle is independently versioned outside the patch and is supplied below with "
@@ -66,8 +68,8 @@ def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sh
         "A strict-mode locator error does not by itself establish a product defect: "
         "distinguish ambiguous substring matching in a test from genuinely duplicate "
         "exact accessible names. Do not recommend hiding or renaming valid controls "
-        "to accommodate an ambiguous test. Check actual view visibility against CSS "
-        "and confirm that existing board markup and styling are preserved. "
+        "to accommodate an ambiguous test. Check actual visibility against CSS "
+        "and distinguish intentional PRD changes from unintended regressions. "
         "Identify real defects or missing criteria; never invent a finding "
         "to create a demo correction. End by checking git status --porcelain to confirm "
         "you left the snapshot unchanged.\n"
@@ -96,8 +98,10 @@ def review_archive(source, base, patch):
         return git(repo, "archive", "--format=tar", tree), tree
 
 
-def validate_review(value, patch_sha, acceptance_sha):
-    if (value.get("schemaVersion") != 1 or value.get("patchSha256") != patch_sha
+def validate_review(value, patch_sha, acceptance_sha, required_ids=None):
+    ids = LEGACY_AC_IDS if required_ids is None else validate_acceptance_ids(required_ids)
+    if (not isinstance(value, dict) or type(value.get("schemaVersion")) is not int
+            or value.get("schemaVersion") != 1 or value.get("patchSha256") != patch_sha
             or value.get("acceptanceSha256") != acceptance_sha
             or value.get("verdict") not in {"approve", "request_changes"}
             or not isinstance(value.get("summary"), str)):
@@ -106,14 +110,15 @@ def validate_review(value, patch_sha, acceptance_sha):
     if not isinstance(findings, list) or len(findings) > 30:
         raise ValueError("Invalid review findings")
     for finding in findings:
-        if (finding.get("severity") not in {"blocker", "major", "minor"}
+        if (not isinstance(finding, dict) or finding.get("severity") not in {"blocker", "major", "minor"}
                 or not all(isinstance(finding.get(key), str) and finding[key].strip()
                            for key in ("title", "evidence", "requestedChange"))
                 or not isinstance(finding.get("path"), str)
                 or (finding.get("line") is not None and
                     (type(finding["line"]) is not int or finding["line"] < 1))
                 or not isinstance(finding.get("acceptanceIds"), list)
-                or not set(finding["acceptanceIds"]) <= {f"AC-{n}" for n in range(1, 8)}):
+                or any(not isinstance(ref, str) for ref in finding["acceptanceIds"])
+                or not set(finding["acceptanceIds"]) <= ids):
             raise ValueError("Malformed review finding")
     blocking = any(finding["severity"] in {"blocker", "major"} for finding in findings)
     if blocking and value["verdict"] != "request_changes":
@@ -141,6 +146,34 @@ def collect_patch(stages, base, event, items, turn_id):
     return canonical_patch(Path.cwd(), base, patch), manifest
 
 
+def validate_check_binding(checks, base, patch_sha, manifest, required_ids=None):
+    """A restored success must satisfy the same frozen suite as a fresh run."""
+    from feature_checks import exact_case_errors
+    if (not isinstance(checks, dict) or type(checks.get("passed")) is not bool
+            or checks.get("baseCommit") != base or checks.get("patchSha256") != patch_sha
+            or checks.get("acceptanceSha256") != manifest["acceptanceSha256"]):
+        raise ValueError("Stored checks do not match this candidate")
+    if not checks["passed"]:
+        return
+    required_commands = {"canonical-patch", "clone", "checkout-base", "verify-base",
+                         "apply-candidate", "protected-inputs", "npm-ci", "npm-test",
+                         "npm-build", "board-browser", "repair-browser", "feature-browser"}
+    commands = checks.get("commands")
+    if (checks.get("status") != "passed" or checks.get("errors") != []
+            or checks.get("infrastructureFailure") is not False
+            or checks.get("actualAcceptanceSha256") != manifest["acceptanceSha256"]
+            or not isinstance(commands, list) or len(commands) != len(required_commands)
+            or any(not isinstance(row, dict) for row in commands)
+            or {row.get("name") for row in commands} != required_commands
+            or any(row.get("status") != "passed" or type(row.get("exitCode")) is not int
+                   or row["exitCode"] != 0 or row.get("timedOut") is not False for row in commands)):
+        raise ValueError("Stored success does not contain every passing independent command")
+    errors = exact_case_errors(checks, [case["title"] for case in manifest["cases"]],
+                               required_ids=required_ids)
+    if errors:
+        raise ValueError("Stored checks: " + "; ".join(errors))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--planning", type=Path, required=True)
@@ -158,6 +191,7 @@ def main():
     provenance = json.loads((args.planning / "provenance.json").read_text())
     plan = validate_plan(json.loads((args.planning / "plan.json").read_text()))
     prd = (args.planning / "prd.md").read_text()
+    validate_planning_identity(plan, prd, provenance, args.event)
     acceptance_directory = args.acceptance or directory / "acceptance"
     acceptance_path = acceptance_directory / "workload.acceptance.spec.js"
     acceptance = acceptance_path.read_text()
@@ -170,7 +204,23 @@ def main():
             or digest(contract.encode()) != manifest["contractSha256"]
             or any(manifest[key] != provenance[key] for key in ("baseCommit", "planSha256", "prdSha256"))):
         raise ValueError("Feature inputs must match frozen planning and acceptance")
+    required_ids = requirement_ids(plan) if plan["schemaVersion"] == 2 else None
+    if manifest.get("schemaVersion") != plan["schemaVersion"]:
+        raise ValueError("Acceptance and plan schema versions differ")
+    if manifest.get("eventId") != args.event or manifest.get("status") != "authored-not-executed":
+        raise ValueError("Acceptance belongs to a different event or stage")
+    validate_acceptance({**manifest, "spec": acceptance}, required_ids)
+    if contract != plan_contract(plan):
+        raise ValueError("Acceptance contract differs from the pinned plan")
+    if required_ids is not None:
+        journey = plan_journey(plan)
+        if (manifest.get("browserJourney") != journey
+                or manifest.get("browserJourneySha256") != digest(canonical_json(journey))):
+            raise ValueError("Acceptance browser journey differs from the pinned plan")
     identity = {key: manifest[key] for key in ("acceptanceSha256", "contractSha256", "planSha256", "prdSha256")}
+    if required_ids is not None:
+        identity["browserJourneySha256"] = manifest["browserJourneySha256"]
+        identity["acceptanceManifestSha256"] = digest(canonical_json(manifest))
     stages = FeatureStages(args.event, base, directory / "stages")
     export = shlex.join(["python", "/opt/bma/tools/workspace_io.py", "export",
                         "--bucket", stages.bucket, "--event", args.event + "-implementation", "--base", base])
@@ -218,8 +268,16 @@ def main():
             result = json.loads((candidate / "result.json").read_text())
             patch = (candidate / "verified.patch").read_bytes()
             if (digest(patch) != result["patchSha256"] or result["acceptanceSha256"] != manifest["acceptanceSha256"]
-                    or result["baseCommit"] != base):
+                    or result["baseCommit"] != base
+                    or any(result.get(key) != value for key, value in identity.items())):
                 raise ValueError("Stored candidate identity changed")
+            validate_check_binding(result.get("checks"), base, result["patchSha256"],
+                                   manifest, required_ids)
+            validate_review(result.get("review"), result["patchSha256"],
+                            manifest["acceptanceSha256"], required_ids)
+            if result.get("passed") is not (result["checks"]["passed"]
+                                           and result["review"]["verdict"] == "approve"):
+                raise ValueError("Stored candidate verdict differs from its validated checks/review")
         else:
             if attempt:
                 feedback = history[-1]
@@ -249,13 +307,13 @@ def main():
                     checks_path.replace(saved_failure)
             if checks_path.exists():
                 checks = json.loads(checks_path.read_text())
-                if (checks.get("patchSha256") != patch_sha or checks.get("baseCommit") != base
-                        or checks.get("acceptanceSha256") != manifest["acceptanceSha256"]):
-                    raise ValueError("Stored checks do not match this candidate")
             else:
                 checks = check_candidate(Path.cwd(), base, patch, acceptance_path,
-                                         candidate / "checks", manifest["acceptanceSha256"])
+                                         candidate / "checks", manifest["acceptanceSha256"],
+                                         expected_titles=[case["title"] for case in manifest["cases"]],
+                                         required_ids=required_ids)
                 checks_path.write_text(json.dumps(checks, indent=2))
+            validate_check_binding(checks, base, patch_sha, manifest, required_ids)
             if checks.get("infrastructureFailure") is True:
                 stages.s3.put_object(Bucket=stages.bucket, Key=f"state/features/{args.event}/check-block.json",
                     Body=json.dumps({"attempt": attempt, "patchSha256": patch_sha,
@@ -273,7 +331,7 @@ def main():
                                 manifest["acceptanceSha256"], acceptance),
                 archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree})
             review = validate_review(final_json(review_items, review_state["outcome"]["turnId"]),
-                                     patch_sha, manifest["acceptanceSha256"])
+                                     patch_sha, manifest["acceptanceSha256"], required_ids)
             result = {"schemaVersion": 1, "attempt": attempt, "baseCommit": base,
                 "patchSha256": patch_sha, "tree": tree, **identity,
                 "implementationSessionId": session_id, "implementationTurnId": state["outcome"]["turnId"],

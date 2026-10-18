@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from design_board import canonical_json, validate_plan
+from feature_contract import plan_contract, plan_journey, requirement_ids, validate_planning_identity
 from feature_stages import (FeatureStages, acceptance_prompt, digest, final_json,
                             source_archive, validate_acceptance)
 
@@ -25,7 +26,9 @@ def main():
         raise ValueError("Planning input does not match its pinned provenance")
     if plan["questions"]:
         raise ValueError("Material planning questions must be resolved before acceptance")
-    contract = Path("demo/contracts/team-workload-ui.md").read_text()
+    validate_planning_identity(plan, prd, provenance, args.event)
+    contract = plan_contract(plan)
+    required_ids = requirement_ids(plan) if plan["schemaVersion"] == 2 else None
     directory = Path("artifacts") / args.event
     stages = FeatureStages(args.event, provenance["baseCommit"], directory / "stages")
     prompt = acceptance_prompt(prd, plan, contract)
@@ -49,7 +52,7 @@ def main():
         extra_identity={"planSha256": provenance["planSha256"],
                         "prdSha256": provenance["prdSha256"], "contractSha256": digest(contract.encode()),
                         **review_identity})
-    bundle = validate_acceptance(final_json(items, state["outcome"]["turnId"]))
+    bundle = validate_acceptance(final_json(items, state["outcome"]["turnId"]), required_ids)
     destination = directory / args.stage
     destination.mkdir(parents=True, exist_ok=True)
     spec = bundle["spec"].encode()
@@ -58,6 +61,11 @@ def main():
         "contractSha256": digest(contract.encode()), "acceptanceSha256": digest(spec),
         "sessionId": state["sessionId"], "turnId": state["outcome"]["turnId"],
         "cases": bundle["cases"], "status": "authored-not-executed", **review_identity}
+    if required_ids is not None:
+        journey = plan_journey(plan)
+        manifest.update({"schemaVersion": 2, "acceptanceIds": sorted(required_ids),
+                         "browserJourney": journey,
+                         "browserJourneySha256": digest(canonical_json(journey))})
     for name, data in (("workload.acceptance.spec.js", spec),
                        ("manifest.json", json.dumps(manifest, indent=2).encode()),
                        ("ui-contract.md", contract.encode())):

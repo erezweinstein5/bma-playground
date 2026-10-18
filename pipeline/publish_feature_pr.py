@@ -28,6 +28,11 @@ from design_board import canonical_json, validate_plan
 from feature_browser import (design_links, digest, json_object, read_file,
                              validate_feature_calls)
 from feature_cycle import validate_review
+from feature_contract import (GENERIC_KIND, LEGACY_KIND, requirement_ids,
+                              validate_acceptance_ids, validate_prd_requirements)
+from feature_delivery import validate_plan_binding
+from feature_checks import exact_case_errors
+from feature_stages import validate_acceptance
 
 
 HASH_FIELDS = ("patchSha256", "acceptanceSha256", "contractSha256",
@@ -68,21 +73,25 @@ def authorized_assignment(assignment, event, event_name, operators, repository):
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+", repository or "")
             and event.get("repository", {}).get("full_name") == repository,
             "Wrong trigger repository")
-    require(not issue.get("pull_request") and issue.get("state") == "open"
+    require("pull_request" not in issue and issue.get("state") == "open"
             and any(row.get("name") == "agent-feature" for row in issue.get("labels", []))
             and (event["action"] != "labeled"
                  or event.get("label", {}).get("name") == "agent-feature"),
             "Feature issue must be open and explicitly labeled")
     require(all(type(issue.get(key)) is int and 0 < issue[key] <= 2**53 - 1
                 for key in ("id", "number")), "Invalid issue identity")
-    require(isinstance(issue.get("title"), str)
-            and isinstance(issue.get("body") or "", str), "Malformed PRD")
+    require(isinstance(issue.get("title"), str) and issue["title"].strip()
+            and (issue.get("body") is None or isinstance(issue["body"], str)), "Malformed PRD")
     prd = f'# {issue["title"]}\n\n{issue.get("body") or ""}\n'
-    require(100 <= len(prd.encode()) <= 32000
-            and all(re.search(rf"\bAC-{n}\b", prd) for n in range(1, 8)),
-            "Invalid bounded Team Workload PRD")
+    require(100 <= len(prd.encode()) <= 32000, "Invalid bounded PRD")
+    version, kind = assignment.get("schemaVersion"), assignment.get("kind")
+    require(type(version) is int and (version, kind) in
+            {(1, LEGACY_KIND), (2, GENERIC_KIND)}, "Unsupported feature assignment schema/kind")
+    if version == 1:
+        require(all(re.search(rf"\bAC-{n}\b", prd) for n in range(1, 8)),
+                "Invalid bounded Team Workload PRD")
     require(sha(assignment.get("baseCommit"), 40), "Assignment must pin a full commit")
-    expected = {"schemaVersion": 1, "kind": "team-workload-v1", "repository": repository,
+    expected = {"schemaVersion": version, "kind": kind, "repository": repository,
                 "issueNumber": issue["number"], "eventId": f'issue-feature-{issue["id"]}',
                 "actor": sender["login"], "baseCommit": assignment["baseCommit"],
                 "title": issue["title"], "prd": prd, "prdSha256": digest(prd.encode()),
@@ -124,7 +133,8 @@ def canonical_without_credentials(source, base, patch):
             stderr=subprocess.PIPE)
 
 
-def validate_checks(checks, candidate, acceptance):
+def validate_checks(checks, candidate, acceptance, required_ids=None):
+    ids = ACS if required_ids is None else validate_acceptance_ids(required_ids)
     require(type(checks.get("schemaVersion")) is int and checks.get("schemaVersion") == 1
             and checks.get("passed") is True
             and checks.get("status") == "passed" and checks.get("errors") == []
@@ -142,7 +152,8 @@ def validate_checks(checks, candidate, acceptance):
                     and row["exitCode"] == 0 and row.get("timedOut") is False for row in commands),
             "Missing, duplicated, failed, or unexecuted required command")
     cases, expected = checks.get("featureCases", []), acceptance.get("cases", [])
-    require(isinstance(expected, list) and 10 <= len(expected) <= 30
+    require(isinstance(expected, list)
+            and (10 <= len(expected) <= 30 if required_ids is None else 1 <= len(expected) <= 60)
             and all(isinstance(row, dict) and isinstance(row.get("title"), str)
                     for row in expected), "Malformed frozen acceptance cases")
     titles = {row["title"] for row in expected}
@@ -160,15 +171,17 @@ def validate_checks(checks, candidate, acceptance):
     for row in cases:
         tags = set(re.findall(r"\[(AC-[1-9][0-9]*)\]", row["title"]))
         require(isinstance(row.get("acceptanceIds"), list)
-                and set(row["acceptanceIds"]) == tags and tags <= ACS,
+                and validate_acceptance_ids(row["acceptanceIds"]) == tags and tags <= ids,
                 "Feature case acceptance tags differ")
         actual_acs.update(tags)
-    require(actual_acs == ACS and set(checks.get("coveredAcceptanceIds", [])) == ACS
+    require(actual_acs == ids and validate_acceptance_ids(checks.get("coveredAcceptanceIds")) == ids
             and type(checks.get("executedFeatureCases")) is int
             and checks["executedFeatureCases"] == len(titles)
             and type(checks.get("executedProjectCases")) is int
             and checks.get("executedProjectCases") == len(titles),
             "Feature acceptance coverage is incomplete")
+    errors = exact_case_errors(checks, [row["title"] for row in expected], required_ids=required_ids)
+    require(not errors, "; ".join(errors))
 
 
 def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
@@ -184,6 +197,13 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
     manifest = load(acceptance / "manifest.json")
     browser, report = load(browser_path), load(browser_path.with_name("report.json"))
     items = load(browser_path.with_name("items.json")).get("items")
+    generic = assignment["kind"] == GENERIC_KIND
+    require(type(plan.get("schemaVersion")) is int
+            and plan["schemaVersion"] == assignment["schemaVersion"],
+            "Plan schema differs from the authorized assignment")
+    required_ids = requirement_ids(plan) if generic else None
+    if generic:
+        validate_prd_requirements(plan, assignment["prd"])
     require(sha(candidate.get("baseCommit"), 40) and type(candidate.get("schemaVersion")) is int
             and candidate.get("schemaVersion") == 1
             and candidate.get("passed") is True and type(candidate.get("attempt")) is int
@@ -193,6 +213,8 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
                          "issueNumber": assignment["issueNumber"],
                          "eventId": assignment["eventId"], "baseCommit": assignment["baseCommit"]}
     for value in (candidate, provenance, manifest, browser, report):
+        require(value.get("featureKind", assignment["kind"]) == assignment["kind"],
+                "Artifact has a different feature kind")
         for field, expected in expected_identity.items():
             if field in value:
                 require(value[field] == expected, f"Artifact has a different {field}")
@@ -201,7 +223,8 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
             and provenance.get("baseCommit") == candidate["baseCommit"]
             and provenance.get("status") == "planned" and not plan["questions"],
             "Planning must be complete for this authorized event and base")
-    require(type(manifest.get("schemaVersion")) is int and manifest.get("schemaVersion") == 1
+    require(type(manifest.get("schemaVersion")) is int
+            and manifest["schemaVersion"] == assignment["schemaVersion"]
             and manifest.get("eventId") == assignment["eventId"]
             and manifest.get("baseCommit") == candidate["baseCommit"]
             and manifest.get("status") == "authored-not-executed",
@@ -218,15 +241,39 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
             require(manifest.get(field) == value, f"Acceptance manifest has a different {field}")
     require(all(provenance.get(key) == actual[key] for key in ("planSha256", "prdSha256"))
             and actual["prdSha256"] == assignment["prdSha256"], "PRD or plan identity changed")
+    journey = None
+    if generic:
+        _, journey = validate_plan_binding(plan, manifest, (browser, report))
+        require(validate_acceptance_ids(candidate.get("checks", {}).get("coveredAcceptanceIds")) == required_ids
+                and candidate.get("browserJourneySha256") == manifest["browserJourneySha256"],
+                "Candidate criteria/journey differ from the pinned plan")
+        if "acceptanceIds" in candidate:
+            require(validate_acceptance_ids(candidate["acceptanceIds"]) == required_ids,
+                    "Candidate acceptance IDs differ from the pinned plan")
+        if "browserJourney" in candidate:
+            require(candidate["browserJourney"] == journey, "Candidate browser journey differs from the plan")
+        if "acceptanceManifestSha256" in candidate:
+            require(candidate["acceptanceManifestSha256"] == digest(canonical_json(manifest)),
+                    "Candidate acceptance manifest hash mismatch")
+        validate_acceptance({"schemaVersion": 2, "acceptanceIds": manifest["acceptanceIds"],
+                             "cases": manifest.get("cases"),
+                             "spec": read_file(acceptance / "workload.acceptance.spec.js",
+                                               512 * 1024).decode()},
+                            required_ids=required_ids)
+    else:
+        for value in (manifest, candidate, browser, report):
+            require(not any(key in value for key in
+                            ("acceptanceIds", "browserJourney", "browserJourneySha256")),
+                    "Legacy evidence cannot downgrade a generic feature")
     export = candidate.get("exportManifest", {})
     require(export.get("eventId") == assignment["eventId"] + "-implementation"
             and export.get("baseCommit") == candidate["baseCommit"]
             and export.get("patchSha256") == actual["patchSha256"]
             and export.get("patchKey") == f'repairs/{assignment["eventId"]}-implementation/repair.patch',
             "Candidate export belongs to a different event or patch")
-    validate_checks(candidate.get("checks", {}), candidate, manifest)
+    validate_checks(candidate.get("checks", {}), candidate, manifest, required_ids=required_ids)
     review = validate_review(candidate.get("review", {}), actual["patchSha256"],
-                             actual["acceptanceSha256"])
+                             actual["acceptanceSha256"], required_ids=required_ids)
     require(review["verdict"] == "approve", "Fresh review did not approve this candidate")
     stages = {
         "planning": {"session": provenance.get("sessionId"), "turn": provenance.get("turnId")},
@@ -242,7 +289,8 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
             "Planning, acceptance, implementation, review, and browser require distinct sessions")
     candidate_sha = digest(canonical_json(candidate))
     for value in (browser, report):
-        require(type(value.get("schemaVersion")) is int and value.get("schemaVersion") == 1
+        require(type(value.get("schemaVersion")) is int
+                and value.get("schemaVersion") == (2 if generic else 1)
                 and value.get("taskKind") == "feature"
                 and value.get("passed") is True and value.get("eventId") == assignment["eventId"]
                 and value.get("baseCommit") == candidate["baseCommit"]
@@ -281,7 +329,8 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
             "Browser preview does not identify this feature")
     phases = report.get("phases", {})
     require(set(phases) == {"after"} and isinstance(items, list), "Missing feature recording transcript")
-    observations = validate_feature_calls(items, browser["verificationTurnId"], descriptor, phases["after"])
+    observations = validate_feature_calls(items, browser["verificationTurnId"], descriptor,
+                                          phases["after"], journey=journey)
     require(report.get("verifiedObservations") == observations
             and evidence.get("browserSessions") == {"after": phases["after"]["browserSessionId"]},
             "Browser observations/session do not match the transcript")
@@ -308,10 +357,17 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
                 "browserResultSha256": digest(canonical_json(browser)),
                 "browserReportSha256": digest(canonical_json(report)),
                 "browserItemsSha256": digest(canonical_json({"items": items}))}
+    if generic:
+        identity.update(acceptanceIds=sorted(required_ids),
+                        browserJourneySha256=manifest["browserJourneySha256"])
     metadata = {"schemaVersion": 2, "kind": "feature", "featureKind": assignment["kind"],
                 "issue": assignment["issueNumber"], "session": stages["implementation"]["session"],
                 "event": assignment["eventId"], "base": candidate["baseCommit"], **actual,
                 "publicationSha256": digest(canonical_json(identity))}
+    if generic:
+        metadata.update({key: identity[key] for key in
+                         ("acceptanceIds", "browserJourneySha256", "acceptanceManifestSha256",
+                          "browserReportSha256")})
     return {"identity": identity, "metadata": metadata, "stages": stages, "patch": patch,
             "tree": candidate["tree"], "design": design, "evidence": evidence,
             "issue": event["issue"], "caseCount": candidate["checks"]["executedFeatureCases"]}
@@ -322,7 +378,9 @@ def marker(context):
 
 
 def title(context):
-    return f'Implement Team Workload for issue #{context["identity"]["issueNumber"]}'
+    label = ("PRD feature" if context["identity"]["featureKind"] == GENERIC_KIND
+             else "Team Workload")
+    return f'Implement {label} for issue #{context["identity"]["issueNumber"]}'
 
 
 def body(context, head):
@@ -330,6 +388,8 @@ def body(context, head):
     stages = "\n".join(f'- {name.capitalize()}: session `{row["session"]}`, turn `{row["turn"]}`.'
                        for name, row in context["stages"].items())
     hashes = "\n".join(f"- {name}: `{identity[name]}`." for name in HASH_FIELDS)
+    keyboard = ("" if identity["featureKind"] == GENERIC_KIND else
+                " Keyboard coverage comes from acceptance checks, not the recording.")
     return (
         f'Refs #{identity["issueNumber"]}.\n\n'
         "BMA planned and implemented this feature from the authorized PRD. "
@@ -337,8 +397,7 @@ def body(context, head):
         "the frozen acceptance bundle, design proposal, and evidence separately.\n\n"
         f'{context["caseCount"]} frozen feature cases, existing board/repair checks, unit tests, '
         "and build passed for this patch. A fresh BMA review approved it. A separate BMA "
-        "session verified the recorded browser interactions. Keyboard coverage comes "
-        "from acceptance checks, not the recording.\n\n"
+        f"session verified the recorded browser interactions.{keyboard}\n\n"
         f'[Visual design proposal]({context["design"]["url"]}) · '
         f'[Watch browser verification (MP4)]({context["evidence"]["watchUrl"]})\n\n'
         f'[Verification report]({context["evidence"]["reportUrl"]})\n\n'

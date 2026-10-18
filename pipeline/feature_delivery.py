@@ -27,10 +27,13 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 
 import requests
 
-from design_board import canonical_json
+from design_board import canonical_json, validate_plan
+from feature_contract import (GENERIC_KIND, LEGACY_KIND, LEGACY_AC_IDS, plan_contract,
+                              plan_journey, requirement_ids, validate_acceptance_ids)
 from feature_checks import (check_candidate, exact_case_errors, https_origin,
                             isolated_env, _run)
 from feature_stages import validate_acceptance
@@ -92,7 +95,8 @@ def feature_hint(pr):
     body = pr.get("body") or ""
     return ((isinstance(branch, str) and "issue-feature" in branch)
             or (isinstance(body, str) and MARKER in body
-                and re.search(r'"kind"\s*:\s*"feature', body) is not None))
+                and re.search(r'"(?:kind|featureKind)"\s*:\s*"(?:feature|prd-feature-v1|team-workload-v1)',
+                              body) is not None))
 
 
 def pr_context(pr, repository):
@@ -111,7 +115,17 @@ def pr_context(pr, repository):
     metadata = json_object(matches[0].encode())
     require(type(metadata.get("schemaVersion")) is int and metadata["schemaVersion"] == 2
             and metadata.get("kind") == "feature"
-            and metadata.get("featureKind") == "team-workload-v1", "Unsupported feature marker schema")
+            and metadata.get("featureKind") in {LEGACY_KIND, GENERIC_KIND},
+            "Unsupported feature marker schema")
+    if metadata["featureKind"] == GENERIC_KIND:
+        require(sha(metadata.get("browserJourneySha256"))
+                and sha(metadata.get("acceptanceManifestSha256"))
+                and sha(metadata.get("browserReportSha256")),
+                "Generic feature marker lacks frozen journey/manifest/report hashes")
+        validate_acceptance_ids(metadata.get("acceptanceIds"))
+    else:
+        require("browserJourneySha256" not in metadata and "acceptanceIds" not in metadata,
+                "Legacy marker cannot downgrade a generic feature")
     issue = metadata.get("issue")
     require(type(issue) is int and 0 < issue <= 2**53 - 1, "Invalid feature issue")
     event = metadata.get("event")
@@ -208,13 +222,76 @@ def fetch_json(origin, path, *, limit=LIMIT):
             return json_object(bytes(data))
 
 
-def validate_bundle(context, report, bundle):
+def validate_plan_binding(plan, manifest, evidence, metadata=None):
+    """Compare every generic claim with the hashed plan, never with itself."""
+    plan = validate_plan(plan)
+    require(type(plan.get("schemaVersion")) is int and plan["schemaVersion"] == 2
+            and not plan["questions"], "Generic feature requires a completed schema-2 plan")
+    require(digest(canonical_json(plan)) == manifest.get("planSha256"),
+            "Acceptance plan hash mismatch")
+    ids, journey = requirement_ids(plan), plan_journey(plan)
+    journey_sha = digest(canonical_json(journey))
+    require(digest(plan_contract(plan).encode()) == manifest.get("contractSha256"),
+            "Acceptance contract differs from the pinned plan")
+    require(type(manifest.get("schemaVersion")) is int and manifest["schemaVersion"] == 2,
+            "Generic feature requires a schema-2 acceptance manifest")
+    for value in (manifest, *evidence):
+        require(value.get("featureKind", GENERIC_KIND) == GENERIC_KIND,
+                "Generic artifact has a different feature kind")
+        require(validate_acceptance_ids(value.get("acceptanceIds")) == ids,
+                "Feature acceptance IDs differ from the pinned plan")
+        require(value.get("browserJourney") == journey
+                and value.get("browserJourneySha256") == journey_sha,
+                "Feature browser journey differs from the pinned plan")
+    manifest_sha = digest(canonical_json(manifest))
+    for value in evidence:
+        if "acceptanceManifestSha256" in value:
+            require(value["acceptanceManifestSha256"] == manifest_sha,
+                    "Acceptance manifest hash mismatch")
+    if metadata is not None:
+        require(validate_acceptance_ids(metadata.get("acceptanceIds")) == ids
+                and metadata.get("browserJourneySha256") == journey_sha,
+                "Marker criteria/journey differ from the pinned plan")
+        require(metadata.get("acceptanceManifestSha256") == manifest_sha,
+                "Acceptance manifest hash mismatch")
+    return ids, journey
+
+
+def validate_report_binding(context, report):
+    """The marker pins every report field, including capture and stage identities."""
+    metadata = context["metadata"]
+    if metadata["featureKind"] == GENERIC_KIND:
+        require(sha(metadata.get("browserReportSha256"))
+                and digest(canonical_json(report)) == metadata["browserReportSha256"],
+                "Browser report hash mismatch")
+
+
+def fetch_plan(origin, context, report):
+    """Fetch only the event's content-addressed design plan on the fixed origin."""
+    validate_report_binding(context, report)
+    origin = https_origin(origin)
+    design = report.get("design")
+    require(isinstance(design, dict) and isinstance(design.get("plan"), str),
+            "Generic evidence must identify its frozen plan")
+    parsed, configured = urlsplit(design["plan"]), urlsplit(origin)
+    require(parsed.scheme == configured.scheme and parsed.netloc == configured.netloc
+            and not parsed.query and not parsed.fragment, "Wrong frozen plan origin")
+    expected = (rf'/evidence/{re.escape(context["eventId"])}/design-'
+                rf'{context["metadata"]["planSha256"][:16]}-[a-f0-9]{{12}}/plan\.json')
+    require(re.fullmatch(expected, parsed.path), "Wrong frozen plan path")
+    return fetch_json(origin, parsed.path)
+
+
+def validate_bundle(context, report, bundle, plan=None):
     metadata, event = context["metadata"], context["eventId"]
+    validate_report_binding(context, report)
     require(set(bundle) == {"manifest", "spec", "contract"}, "Wrong acceptance bundle fields")
     manifest, spec, contract = (bundle[key] for key in ("manifest", "spec", "contract"))
     require(isinstance(manifest, dict) and isinstance(spec, str) and isinstance(contract, str)
             and 1 <= len(contract.encode()) <= 80_000, "Malformed frozen acceptance bundle")
-    require(type(manifest.get("schemaVersion")) is int and manifest["schemaVersion"] == 1
+    generic = metadata["featureKind"] == GENERIC_KIND
+    require(type(manifest.get("schemaVersion")) is int
+            and manifest["schemaVersion"] == (2 if generic else 1)
             and manifest.get("status") == "authored-not-executed"
             and manifest.get("eventId") == event
             and manifest.get("baseCommit") == context["baseCommit"], "Acceptance manifest identity mismatch")
@@ -222,8 +299,8 @@ def validate_bundle(context, report, bundle):
             and digest(contract.encode()) == metadata["contractSha256"], "Frozen acceptance bytes changed")
     for field in HASH_FIELDS[1:]:
         require(manifest.get(field) == metadata[field], f"Acceptance {field} mismatch")
-    # Current markers bind spec/contract/plan/PRD directly. Also enforce a
-    # canonical manifest digest whenever a producer supplies that stronger bind.
+    # Legacy publications did not always expose this digest. Generic markers
+    # must carry it; any additional report digest must agree as well.
     manifest_sha = digest(canonical_json(manifest))
     for identity in (metadata, report):
         if "acceptanceManifestSha256" in identity:
@@ -231,11 +308,22 @@ def validate_bundle(context, report, bundle):
     cases = manifest.get("cases")
     require(isinstance(cases, list) and all(isinstance(case, dict) for case in cases),
             "Malformed manifest cases")
-    validate_acceptance({"schemaVersion": manifest["schemaVersion"], "spec": spec, "cases": cases})
+    required_ids = None
+    acceptance = {"schemaVersion": manifest["schemaVersion"], "spec": spec, "cases": cases}
+    if generic:
+        required_ids, _ = validate_plan_binding(plan, manifest, (report,), metadata)
+        acceptance["acceptanceIds"] = manifest["acceptanceIds"]
+    else:
+        for value in (manifest, report):
+            require(value.get("featureKind", LEGACY_KIND) == LEGACY_KIND
+                    and not any(key in value for key in
+                                ("acceptanceIds", "browserJourney", "browserJourneySha256")),
+                    "Legacy evidence cannot downgrade a generic feature")
+    validate_acceptance(acceptance, required_ids=required_ids)
     for case in cases:
         tags = set(re.findall(r"\[(AC-[1-9][0-9]*)\]", case["title"]))
         require(tags == set(case["acceptanceIds"]), "Manifest title tags differ from acceptance IDs")
-    require(type(report.get("schemaVersion")) is int and report["schemaVersion"] == 1
+    require(type(report.get("schemaVersion")) is int and report["schemaVersion"] == (2 if generic else 1)
             and report.get("taskKind") == "feature" and report.get("purpose") == "feature"
             and report.get("passed") is True and report.get("checksPassed") is True
             and report.get("reviewVerdict") == "approve", "Browser evidence did not pass checks and review")
@@ -301,7 +389,7 @@ def exact_patch(source, context, directory):
         return canonical
 
 
-def validate_check_result(checks, context, expected_titles, mode):
+def validate_check_result(checks, context, expected_titles, mode, required_ids=None):
     require(checks.get("passed") is True and checks.get("status") == "passed"
             and checks.get("errors") == [] and checks.get("infrastructureFailure") is False,
             "Independent feature execution failed")
@@ -317,8 +405,11 @@ def validate_check_result(checks, context, expected_titles, mode):
             and all(row.get("status") == "passed" and type(row.get("exitCode")) is int
                     and row["exitCode"] == 0 and row.get("timedOut") is False for row in commands),
             "Required independent commands did not execute cleanly")
-    errors = exact_case_errors(checks, expected_titles)
+    errors = exact_case_errors(checks, expected_titles, required_ids=required_ids)
     require(not errors, "; ".join(errors))
+    ids = LEGACY_AC_IDS if required_ids is None else validate_acceptance_ids(required_ids)
+    require(validate_acceptance_ids(checks.get("coveredAcceptanceIds")) == ids,
+            "Executed acceptance coverage differs from the pinned plan")
 
 
 def delivery(*, mode, event_path, deployment_path, source, output, env):
@@ -347,11 +438,18 @@ def delivery(*, mode, event_path, deployment_path, source, output, env):
             prefix = f'/evidence/{context["eventId"]}/{context["metadata"]["patchSha256"]}/feature'
             report = fetch_json(origin, prefix + "/report.json")
             bundle = fetch_json(origin, prefix + "/acceptance.json")
-            titles = validate_bundle(context, report, bundle)
+            generic = context["metadata"]["featureKind"] == GENERIC_KIND
+            plan = fetch_plan(origin, context, report) if generic else None
+            titles = validate_bundle(context, report, bundle, plan)
+            required_ids = requirement_ids(plan) if generic else None
             result.update(evidencePrefix=origin + prefix + "/", expectedFeatureCases=len(titles),
                           acceptanceManifestSha256=digest(canonical_json(bundle["manifest"])))
             for name, value in (("report.json", report), ("acceptance.json", bundle)):
                 (output / name).write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+            if generic:
+                (output / "plan.json").write_bytes(canonical_json(plan))
+                result.update(acceptanceIds=sorted(required_ids),
+                              browserJourneySha256=context["metadata"]["browserJourneySha256"])
             spec_path = output / "workload.acceptance.spec.js"
             spec_path.write_bytes(bundle["spec"].encode())
             live = https_origin(env.get("APP_URL")) if mode == "live" else None
@@ -361,7 +459,7 @@ def delivery(*, mode, event_path, deployment_path, source, output, env):
                 require(before.get("commit") == context["revision"], "Live revision before acceptance differs")
             checks = check_candidate(source, context["baseCommit"], patch, spec_path,
                                      output / "checks", context["metadata"]["acceptanceSha256"],
-                                     expected_titles=titles, live_origin=live)
+                                     expected_titles=titles, live_origin=live, required_ids=required_ids)
             result["checks"] = checks
             # Observe revision drift even when an assertion failed.
             if live:
@@ -369,7 +467,7 @@ def delivery(*, mode, event_path, deployment_path, source, output, env):
                 result["revisionAfter"] = after
                 require(after.get("commit") == context["revision"], "Live revision changed during acceptance")
                 require(checks.get("liveOrigin") == live, "Acceptance did not target the deployed origin")
-            validate_check_result(checks, context, titles, mode)
+            validate_check_result(checks, context, titles, mode, required_ids=required_ids)
             result.update(status="passed", passed=True)
     except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError,
             subprocess.SubprocessError, requests.RequestException) as error:

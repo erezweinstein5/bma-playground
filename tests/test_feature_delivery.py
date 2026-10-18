@@ -56,6 +56,59 @@ def fixture(base=BASE, head=HEAD, candidate=b"patch"):
     return metadata, event, report, bundle
 
 
+def generic_fixture(ids=("AC-1", "AC-2"), base=BASE, head=HEAD, candidate=b"patch", journey_ids=None):
+    metadata, event, report, bundle = fixture(base, head, candidate)
+    ids = sorted(ids)
+    label = "Task search" if len(ids) == 2 else "Compact display"
+    selector = "#search" if len(ids) == 2 else "#compact"
+    contract = f"{selector} is a visible {label} control. #setting displays its current state after reload."
+    journey = [
+        {"action": "assert_text", "selector": "#setting", "expected": "Default",
+         "description": "Observe initial state", "acceptanceIds": ids},
+        {"action": "click", "selector": selector, "description": "Change preference", "acceptanceIds": ids},
+        {"action": "assert_text", "selector": "#setting", "expected": label,
+         "description": "Observe changed state", "acceptanceIds": ids},
+    ]
+    if journey_ids is not None:
+        for step in journey:
+            step["acceptanceIds"] = journey_ids
+    plan = {"schemaVersion": 2, "title": label, "problem": "Finding relevant tasks",
+            "approach": "Expose a preference", "assumptions": [], "questions": [], "nonGoals": [],
+            "requirements": [{"id": ref, "behavior": "Expose and persist preference",
+                              "verification": "Observe the displayed preference"} for ref in ids],
+            "tasks": [{"title": "Implement preference", "detail": "Add the visible preference control",
+                       "paths": ["src/main.js"], "acceptanceIds": ids}],
+            "screens": [{"kind": "preferences", "title": "Preferences", "caption": "Visible preference",
+                         "html": "<p>Default</p>", "css": "p{color:black}", "width": 800, "height": 600,
+                         "acceptanceIds": ids}],
+            "flow": [{"title": "Choose preference", "detail": "Select and observe the state"}],
+            "uiContract": contract, "browserJourney": journey}
+    cases = [{"title": f"preference [{ref}]", "acceptanceIds": [ref],
+              "purpose": "Observe the visible preference"} for ref in ids]
+    spec = "import { test, expect } from '@playwright/test';\n" + "\n".join(
+        f"test({json.dumps(row['title'])}, async ({{page}}) => {{\n"
+        " await page.goto('/');\n await expect(page.locator('#setting')).toBeVisible();\n});"
+        for row in cases)
+    hashes = {"planSha256": gate.digest(gate.canonical_json(plan)),
+              "acceptanceSha256": gate.digest(spec.encode()), "contractSha256": gate.digest(contract.encode())}
+    binding = {"acceptanceIds": ids, "browserJourney": journey,
+               "browserJourneySha256": gate.digest(gate.canonical_json(journey))}
+    metadata.update(featureKind="prd-feature-v1", acceptanceIds=ids,
+                    browserJourneySha256=binding["browserJourneySha256"], **hashes)
+    bundle.update(spec=spec, contract=contract)
+    bundle["manifest"].update(schemaVersion=2, cases=cases, **hashes, **binding)
+    metadata["acceptanceManifestSha256"] = gate.digest(gate.canonical_json(bundle["manifest"]))
+    report.update(schemaVersion=2, featureKind="prd-feature-v1", **hashes, **binding)
+    report["preview"].update(hashes)
+    report["design"] = {"plan": f'{ORIGIN}/evidence/{metadata["event"]}/'
+                               f'design-{hashes["planSha256"][:16]}-aaaaaaaaaaaa/plan.json'}
+    report["phases"] = {"after": {"outcome": "passed", "actions": copy.deepcopy(journey)}}
+    report["verifiedObservations"] = list(dict.fromkeys(ref for step in journey for ref in step["acceptanceIds"]))
+    metadata["browserReportSha256"] = gate.digest(gate.canonical_json(report))
+    event["pull_request"]["body"] = "<!-- bma-playground:" + json.dumps(metadata) + " -->"
+    return tuple(copy.deepcopy(value) for value in (metadata, event, report, bundle, plan))
+
+
 def deployment_fixture(metadata, event, revision=HEAD):
     pr = copy.deepcopy(event["pull_request"])
     pr.update(state="closed", merged=True, merged_at="2026-10-18T09:00:00Z", merge_commit_sha=revision)
@@ -70,9 +123,10 @@ def passed_checks(metadata, bundle, mode="ci"):
               "patchSha256": metadata["patchSha256"], "acceptanceSha256": metadata["acceptanceSha256"],
               "actualAcceptanceSha256": metadata["acceptanceSha256"],
               "executedFeatureCases": len(cases), "executedProjectCases": len(cases),
-              "coveredAcceptanceIds": [f"AC-{n}" for n in range(1, 8)],
+              "coveredAcceptanceIds": bundle["manifest"].get("acceptanceIds", [f"AC-{n}" for n in range(1, 8)]),
               "featureCases": [{"title": row["title"], "project": "desktop", "passed": True,
                                 "executed": True, "errors": [], "status": "expected",
+                                "acceptanceIds": row["acceptanceIds"],
                                 "expectedStatus": "passed", "outcomes": ["passed"]} for row in cases],
               "commands": [{"name": name, "status": "passed", "exitCode": 0, "timedOut": False}
                            for name in sorted(gate.CI_COMMANDS if mode == "ci" else gate.LIVE_COMMANDS)]}
@@ -144,6 +198,13 @@ class IdentityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 gate.ci_context(event, event_name, repository)
 
+    def test_generic_kind_hint_cannot_skip_a_broken_marker_after_branch_rename(self):
+        _, event, _, _ = fixture()
+        event["pull_request"]["head"]["ref"] = "ordinary-branch"
+        event["pull_request"]["body"] = '<!-- bma-playground:{"featureKind":"prd-feature-v1"} -->'
+        with self.assertRaisesRegex(ValueError, "marker schema"):
+            gate.ci_context(event, "pull_request", REPO)
+
     def test_live_requires_merged_bot_snapshot_at_exact_deploy_sha(self):
         metadata, event, _, _ = fixture()
         deployment = deployment_fixture(metadata, event)
@@ -175,6 +236,131 @@ class BundleTests(unittest.TestCase):
     def test_frozen_bundle_returns_exact_titles(self):
         self.assertEqual(gate.validate_bundle(self.context, self.report, self.bundle),
                          [row["title"] for row in self.bundle["manifest"]["cases"]])
+
+    def test_unrelated_generic_bundles_require_the_hashed_plan(self):
+        for ids in (("AC-1", "AC-2"), ("AC-3", "AC-8", "AC-12")):
+            with self.subTest(ids=ids):
+                _, event, report, bundle, plan = generic_fixture(ids)
+                context = gate.ci_context(event, "pull_request", REPO)
+                self.assertEqual(gate.validate_bundle(context, report, bundle, plan),
+                                 [case["title"] for case in bundle["manifest"]["cases"]])
+                with self.assertRaises(ValueError):
+                    gate.validate_bundle(context, report, bundle)
+                plan["problem"] = "A different plan"
+                with self.assertRaisesRegex(ValueError, "plan hash"):
+                    gate.validate_bundle(context, report, bundle, plan)
+
+    def test_generic_marker_manifest_and_report_cannot_downgrade(self):
+        for target, field, value in (
+            ("metadata", "featureKind", "team-workload-v1"),
+            ("metadata", "acceptanceManifestSha256", None),
+            ("metadata", "browserJourneySha256", None),
+            ("metadata", "browserReportSha256", None),
+            ("metadata", "acceptanceIds", None),
+            ("manifest", "schemaVersion", 1),
+            ("report", "schemaVersion", 1),
+            ("plan", "schemaVersion", 1),
+            ("report", "browserJourneySha256", None),
+        ):
+            metadata, event, report, bundle, plan = generic_fixture()
+            {"metadata": metadata, "manifest": bundle["manifest"],
+             "report": report, "plan": plan}[target][field] = value
+            event["pull_request"]["body"] = "<!-- bma-playground:" + json.dumps(metadata) + " -->"
+            with self.subTest(target=target, field=field), self.assertRaises(ValueError):
+                context = gate.ci_context(event, "pull_request", REPO)
+                gate.validate_bundle(context, report, bundle, plan)
+
+    def test_generic_journey_can_cover_a_subset_while_acceptance_covers_every_id(self):
+        _, event, report, bundle, plan = generic_fixture(ids=("AC-1", "AC-2", "AC-3"), journey_ids=["AC-1"])
+        context = gate.ci_context(event, "pull_request", REPO)
+        self.assertEqual(len(gate.validate_bundle(context, report, bundle, plan)), 3)
+        self.assertEqual(report["browserJourney"][0]["acceptanceIds"], ["AC-1"])
+
+    def test_shared_self_authored_criteria_journey_and_contract_cannot_replace_plan(self):
+        for kind in ("criteria", "journey", "contract"):
+            metadata, event, report, bundle, plan = generic_fixture()
+            manifest = bundle["manifest"]
+            if kind == "criteria":
+                for value in (metadata, report, manifest):
+                    value["acceptanceIds"] = ["AC-1"]
+            elif kind == "journey":
+                for value in (report, manifest):
+                    value["browserJourney"] = copy.deepcopy(plan["browserJourney"])
+                    value["browserJourney"][1]["selector"] = "#unrelated-feature"
+                checksum = gate.digest(gate.canonical_json(manifest["browserJourney"]))
+                for value in (metadata, report, manifest):
+                    value["browserJourneySha256"] = checksum
+            else:
+                bundle["contract"] += "\nAn unrelated feature has a different contract."
+                for value in (metadata, report, report["preview"], manifest):
+                    value["contractSha256"] = gate.digest(bundle["contract"].encode())
+            metadata["acceptanceManifestSha256"] = gate.digest(gate.canonical_json(manifest))
+            metadata["browserReportSha256"] = gate.digest(gate.canonical_json(report))
+            event["pull_request"]["body"] = "<!-- bma-playground:" + json.dumps(metadata) + " -->"
+            context = gate.ci_context(event, "pull_request", REPO)
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "pinned plan"):
+                gate.validate_bundle(context, report, bundle, plan)
+
+    def test_generic_manifest_hash_is_mandatory_and_covers_non_code_fields(self):
+        _, event, report, bundle, plan = generic_fixture()
+        context = gate.ci_context(event, "pull_request", REPO)
+        bundle["manifest"]["cases"][0]["purpose"] = "Edited after freezing"
+        with self.assertRaisesRegex(ValueError, "manifest hash"):
+            gate.validate_bundle(context, report, bundle, plan)
+
+    def test_generic_marker_binds_the_complete_report_before_selected_fields(self):
+        _, event, report, bundle, plan = generic_fixture()
+        context = gate.ci_context(event, "pull_request", REPO)
+        marker = copy.deepcopy(context["metadata"])
+        for change in (
+            lambda value: value["phases"].update(after={"outcome": "failed", "actions": []}),
+            lambda value: value.update(phases={}),
+            lambda value: value.update(candidateSha256="9" * 64),
+            lambda value: value.update(planningProvenanceSha256="9" * 64),
+            lambda value: value.update(bmaSessionId="sess_substituted"),
+            lambda value: value.update(verificationTurnId="turn_substituted"),
+            lambda value: value["approvedCandidate"].update(reviewSessionId="sess_substituted"),
+            lambda value: value.update(verifiedObservations=[]),
+            lambda value: value.update(artifacts={"after.mp4": {"sha256": "9" * 64}}),
+            lambda value: value["design"].update(plan="https://attacker.invalid/plan.json"),
+        ):
+            substituted = copy.deepcopy(report)
+            change(substituted)
+            with self.subTest(change=change), patch.object(gate, "validate_plan_binding") as validator:
+                with self.assertRaisesRegex(ValueError, "Browser report hash mismatch"):
+                    gate.validate_bundle(context, substituted, bundle, plan)
+                validator.assert_not_called()
+                self.assertEqual(context["metadata"], marker)
+        # Hash the JSON value canonically; harmless serialization order is immaterial.
+        reordered = dict(reversed(list(report.items())))
+        self.assertEqual(gate.validate_bundle(context, reordered, bundle, plan),
+                         [case["title"] for case in bundle["manifest"]["cases"]])
+
+    def test_generic_report_hash_is_required_but_legacy_report_shape_is_unchanged(self):
+        for value in (None, "", "a" * 40, "g" * 64, True):
+            metadata, event, _, _, _ = generic_fixture()
+            if value is None:
+                metadata.pop("browserReportSha256")
+            else:
+                metadata["browserReportSha256"] = value
+            event["pull_request"]["body"] = "<!-- bma-playground:" + json.dumps(metadata) + " -->"
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "report hashes"):
+                gate.ci_context(event, "pull_request", REPO)
+        self.assertNotIn("browserReportSha256", self.context["metadata"])
+        gate.validate_bundle(self.context, self.report, self.bundle)
+
+    def test_legacy_evidence_cannot_hide_generic_bindings(self):
+        for location, key, value in (
+            ("manifest", "acceptanceIds", [f"AC-{n}" for n in range(1, 8)]),
+            ("manifest", "featureKind", "prd-feature-v1"),
+            ("report", "browserJourneySha256", "0" * 64),
+            ("report", "browserJourney", []),
+            ("report", "featureKind", "prd-feature-v1"),
+        ):
+            report, bundle = copy.deepcopy(self.report), copy.deepcopy(self.bundle)
+            (bundle["manifest"] if location == "manifest" else report)[key] = value
+            with self.subTest(location=location, key=key), self.assertRaisesRegex(ValueError, "downgrade"):
+                gate.validate_bundle(self.context, report, bundle)
 
     def test_mutated_spec_contract_manifest_and_case_ids_fail(self):
         for change in (
@@ -303,6 +489,25 @@ class FetchTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "time bound"):
                 gate.fetch_json(ORIGIN, "/report.json")
 
+    def test_plan_fetch_uses_only_the_pinned_event_and_hash_on_configured_origin(self):
+        _, event, report, _, plan = generic_fixture()
+        context = gate.ci_context(event, "pull_request", REPO)
+        with patch.object(gate, "fetch_json", return_value=plan) as fetch:
+            self.assertEqual(gate.fetch_plan(ORIGIN, context, report), plan)
+            self.assertEqual(fetch.call_args.args, (ORIGIN, report["design"]["plan"][len(ORIGIN):]))
+        original = report["design"]["plan"]
+        for url in (original.replace(ORIGIN, "https://attacker.example.com"),
+                    original.replace("issue-feature-123", "issue-feature-456"),
+                    original.replace(context["metadata"]["planSha256"][:16], "0" * 16),
+                    original + "?redirect=elsewhere", original + "#fragment",
+                    original.replace("/plan.json", "/../plan.json"),
+                    original.replace("https://", "https://user:secret@")):
+            report["design"]["plan"] = url
+            with self.subTest(url=url), patch.object(gate, "fetch_json") as fetch:
+                with self.assertRaises(ValueError):
+                    gate.fetch_plan(ORIGIN, context, report)
+                fetch.assert_not_called()
+
 
 class ExecutionTests(unittest.TestCase):
     def setUp(self):
@@ -347,6 +552,8 @@ class ExecutionTests(unittest.TestCase):
                 return self.report
             if path.endswith("/acceptance.json"):
                 return self.bundle
+            if path.endswith("/plan.json"):
+                return self.plan
             if path == "/revision.json":
                 return {"commit": revisions.pop(0)}
             self.fail("Unexpected remote request")
@@ -372,6 +579,53 @@ class ExecutionTests(unittest.TestCase):
         self.assertIsNone(kwargs["live_origin"])
         self.assertEqual(self.git("status", "--porcelain"), before)
         self.assertEqual(json.loads((self.output / "result.json").read_text()), result)
+
+    def test_generic_ci_and_live_pass_plan_ids_to_the_exact_frozen_runner(self):
+        self.metadata, self.event, self.report, self.bundle, self.plan = generic_fixture(
+            ids=("AC-3", "AC-8", "AC-12"), base=self.base, head=self.head,
+            candidate=self.git("diff", self.base, self.head))
+        for mode in ("ci", "live"):
+            with self.subTest(mode=mode):
+                result, fetched, runner = self.run_delivery(mode)
+                self.assertTrue(result["passed"], result["errors"])
+                self.assertEqual(runner.call_args.kwargs["required_ids"], frozenset(("AC-3", "AC-8", "AC-12")))
+                self.assertEqual(runner.call_args.kwargs["expected_titles"],
+                                 [case["title"] for case in self.bundle["manifest"]["cases"]])
+                self.assertEqual(len([path for _, path in fetched if path.endswith("/plan.json")]), 1)
+                self.assertEqual(json.loads((self.output / "plan.json").read_text()), self.plan)
+                self.assertEqual(result["browserJourneySha256"], self.metadata["browserJourneySha256"])
+
+    def test_generic_bad_plan_or_incomplete_execution_fails_closed(self):
+        self.metadata, self.event, self.report, self.bundle, self.plan = generic_fixture(
+            base=self.base, head=self.head, candidate=self.git("diff", self.base, self.head))
+        original = copy.deepcopy(self.plan)
+        self.plan["browserJourney"][1]["selector"] = "#wrong-feature"
+        result, _, runner = self.run_delivery()
+        self.assertFalse(result["passed"])
+        runner.assert_not_called()
+        self.plan = original
+        for change in (
+            lambda checks: checks.update(coveredAcceptanceIds=["AC-1"]),
+            lambda checks: checks.update(coveredAcceptanceIds=["AC-1", "AC-2", "AC-7"]),
+            lambda checks: checks["featureCases"][0].update(outcomes=["passed", "passed"]),
+            lambda checks: checks["featureCases"][0].update(executed=False),
+            lambda checks: checks["featureCases"].pop(),
+        ):
+            checks = passed_checks(self.metadata, self.bundle)
+            change(checks)
+            result, _, runner = self.run_delivery(checks=checks)
+            self.assertFalse(result["passed"], result)
+            runner.assert_called_once()
+
+    def test_generic_report_substitution_stops_before_plan_fetch_or_test_execution(self):
+        self.metadata, self.event, self.report, self.bundle, self.plan = generic_fixture(
+            base=self.base, head=self.head, candidate=self.git("diff", self.base, self.head))
+        self.report["phases"]["after"] = {"outcome": "failed", "actions": []}
+        result, fetched, runner = self.run_delivery()
+        self.assertFalse(result["passed"])
+        self.assertIn("Browser report hash mismatch", " ".join(result["errors"]))
+        self.assertFalse(any(path.endswith("/plan.json") for _, path in fetched))
+        runner.assert_not_called()
 
     def test_stale_checkout_and_patch_mismatch_fail_before_http(self):
         self.git("checkout", "--quiet", "--detach", self.base)
