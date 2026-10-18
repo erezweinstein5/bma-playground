@@ -19,7 +19,7 @@ export function initialTasks() {
 }
 
 export function moveTask(tasks, taskId, destination) {
-  const knownStatuses = ['todo', 'doing', 'complete'];
+  const knownStatuses = COLUMNS.map((column) => column.id);
   if (!knownStatuses.includes(destination)) return tasks;
   return tasks.map((task) => task.id === taskId ? { ...task, status: destination } : task);
 }
