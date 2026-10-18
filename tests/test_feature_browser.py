@@ -265,6 +265,8 @@ class FeatureActionTests(unittest.TestCase):
         mutations = [
             (4, {"action": "click"}), (4, {"value": "Maya"}),
             (4, {"selector": "select"}), (2, {"selector": "body"}),
+            (4, {"selector": 'select[data-owner-for="mobile"]'}),
+            (4, {"selector": '#board select[data-owner-for="mobile"]'}),
             (2, {"actual": "12 / 8", "expected": "12 / 8"}),
             (2, {"actual": "999", "passed": True}),
             (7, {"actual": "Saved", "expected": "Saved"}),
