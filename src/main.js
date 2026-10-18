@@ -9,12 +9,60 @@ try { persisted = localStorage.getItem(STORAGE_KEY); } catch { /* The board work
 let tasks = restoreTasks(persisted);
 let draggedId = null;
 let selectedView = 'board';
+const FOCUS_KEY = 'bma-playground.focus.v1';
+const focusOptions = ['All', ...TEAMMATES.map(({ name }) => name)];
+let selectedTeammate = 'All';
+try {
+  const preference = localStorage.getItem(FOCUS_KEY);
+  if (focusOptions.includes(preference)) selectedTeammate = preference;
+} catch { /* Focus remains usable without storage. */ }
+function persistFocus() {
+  try { localStorage.setItem(FOCUS_KEY, selectedTeammate); }
+  catch { /* Do not claim the preference was saved when storage is unavailable. */ }
+}
+const filters = document.createElement('div');
+filters.className = 'task-filters';
+const searchField = search.closest('.search-field');
+searchField.before(filters);
+const teammateFilter = document.createElement('div');
+teammateFilter.id = 'teammate-filter';
+teammateFilter.className = 'view-switch teammate-filter';
+teammateFilter.setAttribute('role', 'group');
+teammateFilter.setAttribute('aria-label', 'Focus by teammate');
+teammateFilter.innerHTML = focusOptions.map((name) =>
+  `<button type="button" data-teammate="${name}" aria-pressed="${name === selectedTeammate}">${name}</button>`).join('');
+filters.append(teammateFilter, searchField);
+teammateFilter.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-teammate]');
+  if (!button) return;
+  selectedTeammate = button.dataset.teammate;
+  persistFocus();
+  render();
+});
+const filterStatus = document.createElement('p');
+filterStatus.id = 'filter-status';
+filterStatus.setAttribute('role', 'status');
+filterStatus.setAttribute('aria-live', 'polite');
+board.before(filterStatus);
 const drafts = new Map();
 const errors = new Set();
 const workload = document.createElement('div');
 workload.id = 'workload';
 workload.hidden = true;
 board.after(workload);
+const filterEmpty = document.createElement('section');
+filterEmpty.id = 'filter-empty';
+filterEmpty.hidden = true;
+filterEmpty.setAttribute('aria-labelledby', 'filter-empty-title');
+filterEmpty.innerHTML = '<h3 id="filter-empty-title"></h3><p>Try another teammate or search. Your team totals still include all tasks.</p><button id="clear-filters" type="button">Clear filters</button>';
+workload.after(filterEmpty);
+filterEmpty.querySelector('button').addEventListener('click', () => {
+  selectedTeammate = 'All';
+  search.value = '';
+  persistFocus();
+  render();
+  teammateFilter.querySelector('[data-teammate="All"]').focus();
+});
 const switcher = document.createElement('div');
 switcher.className = 'view-switch';
 switcher.setAttribute('role', 'group');
@@ -30,6 +78,7 @@ switcher.addEventListener('click', (event) => {
   workload.hidden = selectedView !== 'workload';
   switcher.querySelectorAll('button').forEach((control) => control.setAttribute('aria-pressed', String(control.dataset.view === selectedView)));
   document.querySelector('.skip-link').href = `#${selectedView}`;
+  render();
 });
 workload.tabIndex = -1;
 
@@ -45,7 +94,7 @@ function card(task) {
     <h3>${task.title}</h3><p class="card-description">${task.description}</p>
     <div class="card-note">${task.status === 'done' ? icons.check : '<span class="note-line" aria-hidden="true"></span>'}<span>${task.note}</span></div>
     <div class="card-bottom"><span class="avatar avatar-${task.color}" title="${task.owner}">${task.initials}</span><span class="priority priority-${task.priority.toLowerCase()}"><span aria-hidden="true">◷</span>${task.priority === 'High' ? 'High priority' : 'No rush'}</span>
-      <label class="status-control"><span class="sr-only">Status for ${task.title}</span><select data-status-for="${task.id}">${COLUMNS.map((column) => `<option value="${column.id}" ${column.id === task.status ? 'selected' : ''}>${column.label}</option>`).join('')}</select></label>
+      <label class="status-control"><span class="sr-only">Status for ${task.title}</span><select data-status-for="${task.id}" aria-label="Status for ${task.title}">${COLUMNS.map((column) => `<option value="${column.id}" ${column.id === task.status ? 'selected' : ''}>${column.label}</option>`).join('')}</select></label>
     </div>
   </article>`;
 }
@@ -70,7 +119,7 @@ function workloadRow(task) {
 
 function renderWorkload(filtered) {
   const totals = workloadTotals(tasks);
-  workload.innerHTML = `<p class="workload-context">Active effort · To do + In progress. Totals include hidden search results; Done adds zero.</p><div class="workload-lanes">${TEAMMATES.map((person) => {
+  workload.innerHTML = `<p class="workload-context">Active effort · To do + In progress. Totals include all tasks regardless of filters; Done adds zero.</p><div class="workload-lanes">${TEAMMATES.map((person) => {
     const total = totals[person.name];
     const visible = filtered.filter((task) => task.owner === person.name && task.status !== 'done');
     return `<section data-workload-owner="${person.name}" aria-label="${person.name} workload">
@@ -88,7 +137,14 @@ function render(focusTaskId) {
   const active = document.activeElement;
   const focusHook = ['data-owner-for', 'data-effort-for', 'data-save-effort-for', 'data-status-for'].find((hook) => active?.hasAttribute(hook));
   const focusId = focusHook ? active.getAttribute(focusHook) : null;
-  const filtered = filterTasks(tasks, search.value);
+  const filtered = filterTasks(tasks, search.value, selectedTeammate);
+  teammateFilter.querySelectorAll('button').forEach((button) =>
+    button.setAttribute('aria-pressed', String(button.dataset.teammate === selectedTeammate)));
+  const count = selectedView === 'workload'
+    ? filtered.filter((task) => task.status !== 'done').length : filtered.length;
+  filterStatus.textContent = `${count} ${selectedView === 'workload' ? 'active ' : ''}${count === 1 ? 'task' : 'tasks'} shown · ${selectedTeammate === 'All' ? 'All teammates' : selectedTeammate}`;
+  filterEmpty.hidden = count !== 0;
+  filterEmpty.querySelector('h3').textContent = selectedView === 'workload' ? 'No matching active tasks' : 'No matching tasks';
   board.innerHTML = COLUMNS.map((column) => {
     const visible = filtered.filter((task) => task.status === column.id);
     return `<section class="column column-${column.id}" data-column="${column.id}" aria-label="${column.label}">
@@ -105,7 +161,11 @@ function render(focusTaskId) {
   const result = document.querySelector('#search-result');
   result.hidden = !search.value.trim();
   result.textContent = `${filtered.length} ${filtered.length === 1 ? 'task matches' : 'tasks match'} “${search.value.trim()}”`;
-  if (focusHook) document.querySelector(`[${focusHook}="${focusId}"]`)?.focus();
+  if (focusHook) {
+    const replacement = document.querySelector(`[${focusHook}="${focusId}"]`);
+    if (replacement) replacement.focus();
+    else teammateFilter.querySelector(`[data-teammate="${selectedTeammate}"]`).focus();
+  }
   if (focusTaskId) document.querySelector(`select[data-status-for="${focusTaskId}"]`)?.focus();
 }
 
@@ -209,6 +269,8 @@ document.querySelector('#reset').addEventListener('click', () => {
   drafts.clear();
   errors.clear();
   search.value = '';
+  selectedTeammate = 'All';
+  persistFocus();
   save();
   render();
   announcement.textContent = 'Demo board reset. Two of six tasks complete.';
