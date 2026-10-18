@@ -1,4 +1,4 @@
-name: BMA feature planning
+name: BMA feature delivery
 on:
   issues:
     types: [opened, labeled]
@@ -9,10 +9,19 @@ concurrency:
   group: bma-feature-${{ github.event.issue.number }}
   cancel-in-progress: false
 jobs:
-  plan:
+  feature:
     if: contains(github.event.issue.labels.*.name, 'agent-feature') && !github.event.issue.pull_request
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      BMA_MODEL: ${{ vars.BMA_MODEL }}
+      BMA_ARTIFACT_BUCKET: ${{ vars.BMA_ARTIFACT_BUCKET }}
+      BMA_EVIDENCE_BUCKET: ${{ vars.BMA_EVIDENCE_BUCKET }}
+      BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
+      BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+      BMA_BROWSER_ID: ${{ vars.BMA_BROWSER_ID }}
+      BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,7 +44,10 @@ jobs:
         with:
           python-version: '3.12'
       - if: steps.assignment.outputs.prepared == 'true'
-        run: pip install -r pipeline/requirements.txt
+        run: |
+          pip install -r pipeline/requirements.txt
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
       - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
         if: steps.assignment.outputs.prepared == 'true'
         with:
@@ -44,6 +56,7 @@ jobs:
           role-duration-seconds: 3600
           allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
       - name: BMA plan and visual design proposal
+        id: plan
         if: steps.assignment.outputs.prepared == 'true'
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
@@ -67,11 +80,77 @@ jobs:
               output.write("## BMA visual planning\n\n")
               output.write(f"[Open the design proposal]({result['designUrl']})\n\n")
               output.write(f"Status: **{result['status']}**. Source: `{result['baseCommit']}`.\n\n")
-              output.write("This workflow currently ends after planning. Implementation and release are separate stages.\n")
+              output.write("Material planning questions stop implementation until resolved.\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"ready={'true' if result['status'] == 'planned' else 'false'}\n")
           PY
+      - name: Independently author and freeze acceptance tests
+        if: steps.plan.outputs.ready == 'true'
+        env:
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          EVENT_ID: ${{ steps.assignment.outputs.event_id }}
+        run: |
+          python pipeline/prepare_feature_acceptance.py \
+            --planning "$ASSIGNMENT_PATH/design" --event "$EVENT_ID"
+      - name: Implement, test, review, and correct within the bounded cycle
+        if: steps.plan.outputs.ready == 'true'
+        env:
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          EVENT_ID: ${{ steps.assignment.outputs.event_id }}
+        run: |
+          python pipeline/feature_cycle.py \
+            --planning "$ASSIGNMENT_PATH/design" --event "$EVENT_ID"
+      - name: Record independent browser verification and publish evidence
+        if: steps.plan.outputs.ready == 'true'
+        env:
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          EVENT_ID: ${{ steps.assignment.outputs.event_id }}
+        run: |
+          python pipeline/feature_browser.py --event "$EVENT_ID" \
+            --candidate "$ASSIGNMENT_PATH/candidate.json" \
+            --planning "$ASSIGNMENT_PATH/design" \
+            --acceptance "$ASSIGNMENT_PATH/acceptance"
+      - name: Validate the complete publication before GitHub authentication
+        id: publication
+        if: steps.plan.outputs.ready == 'true'
+        env:
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          DEMO_OPERATORS: ${{ vars.DEMO_OPERATORS }}
+        run: |
+          python pipeline/publish_feature_pr.py --validate-only \
+            --assignment "$ASSIGNMENT_PATH/assignment.json" \
+            --event "$GITHUB_EVENT_PATH" --candidate "$ASSIGNMENT_PATH/candidate.json" \
+            --planning "$ASSIGNMENT_PATH/design" --acceptance "$ASSIGNMENT_PATH/acceptance" \
+            --browser "$ASSIGNMENT_PATH/browser/result.json" \
+            --result "$ASSIGNMENT_PATH/publication.json"
+          echo "validated=true" >> "$GITHUB_OUTPUT"
+      - name: Authenticate the GitHub App for the verified feature
+        id: app
+        if: steps.publication.outputs.validated == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: bma-playground
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Publish the feature PR and request required-check auto-merge
+        if: steps.publication.outputs.validated == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          DEMO_OPERATORS: ${{ vars.DEMO_OPERATORS }}
+        run: |
+          python pipeline/publish_feature_pr.py --feature-check "Repair acceptance" \
+            --assignment "$ASSIGNMENT_PATH/assignment.json" \
+            --event "$GITHUB_EVENT_PATH" --candidate "$ASSIGNMENT_PATH/candidate.json" \
+            --planning "$ASSIGNMENT_PATH/design" --acceptance "$ASSIGNMENT_PATH/acceptance" \
+            --browser "$ASSIGNMENT_PATH/browser/result.json" \
+            --result "$ASSIGNMENT_PATH/publication.json"
       - uses: actions/upload-artifact@v4
         if: always() && steps.assignment.outputs.prepared == 'true'
         with:
-          name: feature-plan-${{ steps.assignment.outputs.event_id }}
+          name: feature-delivery-${{ steps.assignment.outputs.event_id }}
           path: ${{ steps.assignment.outputs.artifact_path }}
           retention-days: 14

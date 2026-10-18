@@ -35,6 +35,10 @@ def validate_descriptor(value, event, phase, origin):
         raise ValueError("Preview descriptor does not match the requested event and phase")
     if not re.fullmatch(r"[0-9a-f]{64}", value.get("sourceSha256", "")):
         raise ValueError("Preview descriptor has no source digest")
+    if value.get("taskKind", "repair") not in ("repair", "feature"):
+        raise ValueError("Unknown preview task kind")
+    if value.get("taskKind") == "feature" and phase != "after":
+        raise ValueError("Feature verification requires an after preview")
     if urlsplit(expected).scheme != "https":
         raise ValueError("Preview requires HTTPS")
     return expected
@@ -152,14 +156,16 @@ class BrowserTools:
             raise
 
     async def caption(self, observation=""):
-        await self.page.evaluate("""({phase, observation}) => {
+        await self.page.evaluate("""({phase, taskKind, observation}) => {
           document.querySelector('#bma-evidence-caption')?.remove();
           const e=document.createElement('div'); e.id='bma-evidence-caption';
-          e.textContent=phase==='before' ? 'BEFORE  ·  Codex reproducing the issue' : 'AFTER  ·  Codex verifying the repair';
+          e.textContent=taskKind==='feature' ? 'FEATURE  ·  Codex verifying the implementation' :
+            phase==='before' ? 'BEFORE  ·  Codex reproducing the issue' : 'AFTER  ·  Codex verifying the repair';
           if (observation) e.textContent += '  ·  Observed: ' + observation;
           e.style.cssText='position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#101828;color:white;padding:10px 24px;border-radius:999px;font:600 16px system-ui;pointer-events:none';
           document.body.appendChild(e);
-        }""", {"phase": self.phase, "observation": observation[:180]})
+        }""", {"phase": self.phase, "taskKind": self.descriptor.get("taskKind", "repair"),
+              "observation": observation[:180]})
 
     async def drag(self, locator, destination):
         """A paced real mouse drag with an event-driven pointer overlay for video."""

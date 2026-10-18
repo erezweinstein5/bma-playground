@@ -23,6 +23,7 @@ jobs:
       WEB_BUCKET: ${{ vars.WEB_BUCKET }}
       DISTRIBUTION_ID: ${{ vars.DISTRIBUTION_ID }}
       APP_URL: ${{ vars.APP_URL }}
+      BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +55,7 @@ jobs:
           npm test
           npm run build
           npx playwright install --with-deps chromium
-      - name: Identify a merged BMA repair
+      - name: Identify the merged BMA change
         id: issue
         if: steps.current.outputs.deploy == 'true'
         env:
@@ -75,6 +76,13 @@ jobs:
       - name: Verify the live repair acceptance contract
         if: steps.issue.outputs.repair == 'true'
         run: npm run test:repair
+      - name: Verify the deployed feature against its frozen acceptance contract
+        if: steps.issue.outputs.kind == 'feature'
+        env:
+          FEATURE_BASE: ${{ steps.issue.outputs.base }}
+        run: |
+          git fetch --no-tags origin "$FEATURE_BASE"
+          python pipeline/feature_delivery.py live
       - name: Authenticate the App after successful live verification
         id: app
         if: steps.issue.outputs.repair == 'true'
@@ -85,7 +93,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: bma-playground
           permission-issues: write
-      - name: Close the repaired issue
+      - name: Close the verified issue
         if: steps.issue.outputs.repair == 'true'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -96,6 +104,7 @@ jobs:
           name: deployment-${{ env.DEPLOY_SHA }}
           path: |
             artifacts/deployment.json
+            artifacts/feature-delivery-live/
             test-results/
             playwright-report/
           retention-days: 7
