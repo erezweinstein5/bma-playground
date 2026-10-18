@@ -42,9 +42,12 @@ def main():
                 "event": result["eventId"], "base": base}
     body = (
         f'Refs #{result["issueNumber"]}.\n\n'
-        "BMA repaired the assigned application behavior using the OpenAI Codex harness "
-        "and AgentCore Runtime. The trusted adapter validated that the patch changes only "
-        "regular files under `src/`.\n\n"
+        "Codex reproduced the bug in the browser, repaired it through BMA, "
+        "and verified the result.\n"
+    ) + evidence_markdown(result["browserEvidence"]) + (
+        "\n\n<details>\n<summary>Validation and execution details</summary>\n\n"
+        "The trusted adapter validated that the patch changes only regular files "
+        "under `src/`.\n\n"
         "Build, unit, browser, and independent repair acceptance checks must pass before "
         "automatic merge. Deployment verifies the live revision and browser behavior "
         "before closing the issue.\n\n"
@@ -53,9 +56,10 @@ def main():
         f'Browser verification turn: `{result["verificationTurnId"]}`\n'
         f'Tested base: `{base}`\n'
         f'PR revision: `{head}`\n'
-        f'Patch SHA-256: `{result["patchSha256"]}`\n'
+        f'Patch SHA-256: `{result["patchSha256"]}`\n\n'
+        "</details>\n\n"
         f'<!-- bma-playground:{json.dumps(metadata, separators=(",", ":"))} -->'
-    ) + evidence_markdown(result["browserEvidence"])
+    )
     pr = api("POST", f"/repos/{repo}/pulls", {
         "title": f'Repair application for issue #{result["issueNumber"]}',
         "head": branch, "base": "main", "body": body})

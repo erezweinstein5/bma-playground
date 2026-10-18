@@ -277,14 +277,15 @@ def publish_evidence(s3, result, before, after, directory):
 def evidence_markdown(evidence):
     url = evidence["url"]
     return (
-        "\n\n## Browser evidence\n\n"
-        "Codex reproduced the issue and verified the repair using AgentCore Browser. "
-        "These recordings show the agent's actual browser interactions. "
-        "Independent CI checks remain the merge gate.\n\n"
-        f"[Watch or download the full recordings]({url}/index.html) · [Verification report]({url}/report.json)\n\n"
+        "\n\n## Before and after\n\n"
         "| Before | After |\n| --- | --- |\n"
-        f"| ![Before]({url}/before.png) | ![After]({url}/after.png) |\n"
-        f"| [Download before MP4]({url}/before.mp4) | [Download after MP4]({url}/after.mp4) |\n\n"
+        f"| ![Before]({url}/before.png) | ![After]({url}/after.png) |\n\n"
+        "Actual AgentCore Browser captures from this repair run. "
+        "Independent CI checks remain the merge gate.\n\n"
+        "<details>\n<summary>Full recordings and evidence provenance</summary>\n\n"
+        f"[Watch recordings]({url}/index.html) · [Verification report]({url}/report.json)\n\n"
+        f"[Before MP4]({url}/before.mp4) · [After MP4]({url}/after.mp4)\n\n"
         + "\n".join(f"- {phase.title()} browser session: `{session}`"
                     for phase, session in evidence["browserSessions"].items())
+        + "\n\n</details>\n"
     )
