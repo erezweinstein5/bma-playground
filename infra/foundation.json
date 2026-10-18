@@ -943,14 +943,6 @@
                       "ArtifactBucket",
                       "Arn"
                     ]
-                  },
-                  "Condition": {
-                    "StringLike": {
-                      "s3:prefix": [
-                        "state/*",
-                        "repairs/*"
-                      ]
-                    }
                   }
                 },
                 {

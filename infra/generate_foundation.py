@@ -192,8 +192,8 @@ def template():
             sub("${ArtifactBucket.Arn}/sources/*"), sub("${ArtifactBucket.Arn}/repairs/*"),
             sub("${ArtifactBucket.Arn}/state/*"),
         ]),
-        allow("s3:ListBucket", arn("ArtifactBucket"),
-            Condition={"StringLike": {"s3:prefix": ["state/*", "repairs/*"]}}),
+        # Missing-object HEAD probes need bucket-level ListBucket permission.
+        allow("s3:ListBucket", arn("ArtifactBucket")),
         allow(["s3:GetObject", "s3:PutObject"], [
             sub("${EvidenceBucket.Arn}/previews/*"), sub("${EvidenceBucket.Arn}/evidence/*"),
         ]),
