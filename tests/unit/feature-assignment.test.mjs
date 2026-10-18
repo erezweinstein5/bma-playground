@@ -19,6 +19,8 @@ test('pins literal PRD and stable identity; shell content stays data', () => {
   const result = featureAssignment(input, 'issues', 'demo-owner', base);
   assert.equal(result.eventId, 'issue-feature-123');
   assert.equal(result.baseCommit, base);
+  assert.equal(result.schemaVersion, 2);
+  assert.equal(result.kind, 'prd-feature-v1');
   assert.match(result.prd, /\$\(touch/);
   assert.equal(result.prdSha256.length, 64);
   assert.equal(featureAssignment(input, 'issues', 'demo-owner', base).prdSha256, result.prdSha256);
@@ -41,11 +43,31 @@ test('untrusted actors, bots, PRs, and unrelated events cannot trigger planning'
   assert.equal(featureAssignment(event(), 'issue_comment', 'demo-owner', base), null);
 });
 
-test('rejects malformed identity, missing criteria, and oversized UTF-8 input', () => {
+test('accepts unrelated prose PRDs and preserves optional, variable criteria', () => {
+  for (const body of [
+    'People need to find tasks by the assigned teammate. Provide a visible selector and an all-teammates option. Preserve the selection after reload.',
+    'Provide a compact display preference. AC-1: Toggle compact mode. AC-2: Remember the setting after a reload. Explain the active setting visibly.',
+    'AC-3: Let users archive a completed task from its menu. AC-8: Restore an archived task from a dedicated list without losing its original owner.',
+  ]) {
+    const input = event();
+    input.issue.title = 'A product request';
+    input.issue.body = body;
+    const result = featureAssignment(input, 'issues', 'demo-owner', base);
+    assert.equal(result.prd, `# A product request\n\n${body}\n`);
+    assert.equal(result.kind, 'prd-feature-v1');
+  }
+});
+
+test('rejects malformed identity, malformed PRDs, and bounded UTF-8 input', () => {
   for (const mutate of [
     e => { e.issue.id = -1; },
     e => { e.repository.full_name = '../escape'; },
-    e => { e.issue.body = e.issue.body.replace('AC-7', 'AC-8'); },
+    e => { e.issue.number = 2 ** 53; },
+    e => { e.issue.title = {}; },
+    e => { e.issue.body = {}; },
+    e => { e.issue.body = false; },
+    e => { e.issue.title = ''; },
+    e => { e.issue.body = 'too short'; },
     e => { e.issue.body += '界'.repeat(11000); },
   ]) {
     const input = event();

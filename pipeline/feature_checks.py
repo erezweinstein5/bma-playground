@@ -174,7 +174,7 @@ def _strict_json(path: Path):
                       parse_constant=invalid_constant)
 
 
-def parse_feature_report(report, *, expected_titles=None) -> dict:
+def parse_feature_report(report, *, expected_titles=None, required_ids=None) -> dict:
     """Fail closed on incomplete, flaky, focused, skipped, or xfailed reports."""
     summary = {"passed": False, "featureCases": [], "executedFeatureCases": 0,
                "executedProjectCases": 0, "coveredAcceptanceIds": [], "errors": []}
@@ -183,6 +183,8 @@ def parse_feature_report(report, *, expected_titles=None) -> dict:
     executed = set()
     seen = set()
     totals = {key: 0 for key in ("expected", "unexpected", "flaky", "skipped")}
+    from feature_contract import validate_acceptance_ids
+    required = REQUIRED_ACS if required_ids is None else validate_acceptance_ids(required_ids)
 
     def require(condition, message):
         if not condition:
@@ -323,19 +325,25 @@ def parse_feature_report(report, *, expected_titles=None) -> dict:
         errors.append(f"Invalid feature report: {error}")
     summary["executedFeatureCases"] = len(executed)
     summary["coveredAcceptanceIds"] = sorted(covered)
-    if len(executed) < 8:
-        errors.append(f"At least 8 distinct executed feature cases required; found {len(executed)}")
-    if REQUIRED_ACS - covered:
-        errors.append("Missing passing title tags: " + ", ".join(sorted(REQUIRED_ACS - covered)))
+    minimum = 8 if required_ids is None else 1
+    if len(executed) < minimum:
+        errors.append(f"At least {minimum} distinct executed feature cases required; found {len(executed)}")
+    if required - covered:
+        errors.append("Missing passing title tags: " + ", ".join(sorted(required - covered)))
+    if required_ids is not None and covered - required:
+        errors.append("Passing title tags reference unknown plan criteria")
+    if required_ids is not None and expected_titles is None:
+        errors.append("Generic feature checks require the frozen manifest titles")
     if expected_titles is not None:
-        errors.extend(exact_case_errors(summary, expected_titles))
+        errors.extend(exact_case_errors(summary, expected_titles, required_ids=required_ids))
     summary["passed"] = not errors
     return summary
 
 
-def exact_case_errors(summary, expected_titles):
+def exact_case_errors(summary, expected_titles, *, required_ids=None):
     """The frozen manifest, not collected test count, defines the complete suite."""
-    if (not isinstance(expected_titles, (list, tuple)) or not 10 <= len(expected_titles) <= 30
+    low, high = (10, 30) if required_ids is None else (1, 60)
+    if (not isinstance(expected_titles, (list, tuple)) or not low <= len(expected_titles) <= high
             or any(not isinstance(title, str) or not title.strip() for title in expected_titles)
             or len(set(expected_titles)) != len(expected_titles)):
         return ["Invalid frozen manifest titles"]
@@ -354,6 +362,20 @@ def exact_case_errors(summary, expected_titles):
             or type(summary.get("executedProjectCases")) is not int
             or summary["executedProjectCases"] != len(expected_titles)):
         return ["Executed feature counts differ from the frozen manifest"]
+    if required_ids is not None:
+        from feature_contract import validate_acceptance_ids
+        required = validate_acceptance_ids(required_ids)
+        observed = set()
+        for row in cases:
+            tags = set(re.findall(r"\[(AC-[1-9][0-9]*)\]", row["title"]))
+            refs = row.get("acceptanceIds")
+            if (not tags or not tags <= required or not isinstance(refs, list)
+                    or any(not isinstance(ref, str) for ref in refs)
+                    or len(set(refs)) != len(refs) or set(refs) != tags):
+                return ["Executed feature case tags differ from the pinned plan"]
+            observed.update(tags)
+        if observed != required or summary.get("coveredAcceptanceIds") != sorted(required):
+            return ["Executed coverage differs from the pinned plan"]
     return []
 
 
@@ -413,7 +435,7 @@ def _application_digest(repo):
 
 def check_candidate(source: Path, base: str, patch: bytes, acceptance_file: Path,
                     output: Path, acceptance_sha256: str, *, expected_titles=None,
-                    live_origin=None) -> dict:
+                    live_origin=None, required_ids=None) -> dict:
     """Check a candidate without editing source or inheriting AWS/GitHub secrets."""
     output = Path(output).resolve()
     logs = output / ("run-" + uuid.uuid4().hex)
@@ -427,6 +449,12 @@ def check_candidate(source: Path, base: str, patch: bytes, acceptance_file: Path
     try:
         output.mkdir(parents=True, exist_ok=True)
         logs.mkdir()
+        if required_ids is not None:
+            from feature_contract import validate_acceptance_ids
+            required_ids = validate_acceptance_ids(required_ids)
+            result["acceptanceIds"] = sorted(required_ids)
+            if expected_titles is None:
+                raise ValueError("Generic feature checks require frozen manifest titles")
         if live_origin is not None:
             live_origin = https_origin(live_origin)
             result["liveOrigin"] = live_origin
@@ -564,7 +592,8 @@ def check_candidate(source: Path, base: str, patch: bytes, acceptance_file: Path
                 # substring from malformed output or reuse an earlier run's file.
                 result["featureReport"] = command["stdout"]
                 feature = parse_feature_report(_strict_json(Path(command["stdout"])),
-                                               expected_titles=expected_titles)
+                                               expected_titles=expected_titles,
+                                               required_ids=required_ids)
                 result.update({key: value for key, value in feature.items()
                                if key not in {"passed", "errors"}})
                 result["errors"].extend(feature["errors"])

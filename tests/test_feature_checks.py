@@ -46,6 +46,26 @@ def specs(report):
 
 
 class FeatureReportTests(unittest.TestCase):
+    def test_generic_reports_require_every_frozen_case_and_exact_plan_coverage(self):
+        for ids in (["AC-4", "AC-12"], [f"AC-{n}" for n in range(1, 13)]):
+            with self.subTest(ids=ids):
+                report = report_fixture(count=len(ids), project_names=("desktop",))
+                for row, ac_id in zip(specs(report), ids):
+                    row["title"] = f"[{ac_id}] observable behavior"
+                titles = [row["title"] for row in specs(report)]
+                result = checks.parse_feature_report(report, expected_titles=titles, required_ids=ids)
+                self.assertTrue(result["passed"], result["errors"])
+                self.assertFalse(checks.parse_feature_report(report, required_ids=ids)["passed"])
+                self.assertFalse(checks.parse_feature_report(
+                    report, expected_titles=titles[:-1], required_ids=ids)["passed"])
+                self.assertFalse(checks.parse_feature_report(
+                    report, expected_titles=titles, required_ids=[*ids, "AC-40"])["passed"])
+                self.assertFalse(checks.parse_feature_report(
+                    report, expected_titles=titles, required_ids=ids[:-1])["passed"])
+                specs(report)[0]["tests"][0]["results"][0]["retry"] = 1
+                self.assertFalse(checks.parse_feature_report(
+                    report, expected_titles=titles, required_ids=ids)["passed"])
+
     def test_manifest_titles_require_exact_clean_desktop_runs(self):
         report = report_fixture(count=10, project_names=("desktop",))
         titles = [row["title"] for row in specs(report)]
@@ -361,6 +381,24 @@ class CandidateTests(unittest.TestCase):
         self.assertIn("SHA-256 mismatch", " ".join(result["errors"]))
         self.assertEqual(result["actualAcceptanceSha256"], self.acceptance_hash)
         self.assertEqual(json.loads((self.output / "result.json").read_text()), result)
+
+    def test_generic_runner_passes_frozen_titles_and_ids_through_to_execution(self):
+        report = report_fixture(count=2, project_names=("desktop",))
+        ids = ["AC-4", "AC-12"]
+        for row, ac_id in zip(specs(report), ids):
+            row["title"] = f"[{ac_id}] display preference"
+        titles = [row["title"] for row in specs(report)]
+        run, observed = self.fake_commands(feature_report=report)
+        with patch.object(checks, "_run", side_effect=run):
+            result = self.check(expected_titles=titles, required_ids=ids)
+        self.assertTrue(result["passed"], result["errors"])
+        self.assertEqual(result["acceptanceIds"], sorted(ids))
+        self.assertEqual(result["executedFeatureCases"], 2)
+        self.assertEqual([name for name, *_ in observed][-1], "feature-browser")
+        with patch.object(checks, "_run") as run:
+            result = self.check(required_ids=ids)
+        self.assertFalse(result["passed"])
+        run.assert_not_called()
 
     def test_unpinned_base_and_invalid_frozen_file_fail_as_results(self):
         for overrides in ({"base": "HEAD"}, {"acceptance_sha256": "invalid"},

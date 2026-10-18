@@ -75,12 +75,21 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-          result = json.loads((Path(os.environ["ASSIGNMENT_PATH"]) / "planning-state.json").read_text())
+          folder = Path(os.environ["ASSIGNMENT_PATH"])
+          result = json.loads((folder / "planning-state.json").read_text())
+          plan = json.loads((folder / "design" / "plan.json").read_text())
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
               output.write("## BMA visual planning\n\n")
               output.write(f"[Open the design proposal]({result['designUrl']})\n\n")
               output.write(f"Status: **{result['status']}**. Source: `{result['baseCommit']}`.\n\n")
-              output.write("Material planning questions stop implementation until resolved.\n")
+              output.write(f"{len(plan['requirements'])} PRD criteria and {len(plan['screens'])} proposed screens.\n\n")
+              output.write("The design is a generated proposal. It is not a deployed feature or a manual approval gate.\n\n")
+              if plan["questions"]:
+                  output.write("Implementation stopped for these material questions:\n\n")
+                  for question in plan["questions"]:
+                      output.write(f"- {question}\n")
+              else:
+                  output.write("Next: independent acceptance authoring, then implementation and review.\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write(f"ready={'true' if result['status'] == 'planned' else 'false'}\n")
           PY
@@ -92,6 +101,16 @@ jobs:
         run: |
           python pipeline/prepare_feature_acceptance.py \
             --planning "$ASSIGNMENT_PATH/design" --event "$EVENT_ID"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads((Path(os.environ["ASSIGNMENT_PATH"]) / "acceptance" / "manifest.json").read_text())
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+              output.write("\n## Frozen acceptance\n\n")
+              output.write(f"{len(manifest['cases'])} independently authored cases. Not yet executed.\n\n")
+              output.write(f"Spec SHA-256: `{manifest['acceptanceSha256']}`.\n\n")
+              output.write("The implementer cannot edit this suite. All frozen cases must pass.\n")
+          PY
       - name: Implement, test, review, and correct within the bounded cycle
         if: steps.plan.outputs.ready == 'true'
         env:

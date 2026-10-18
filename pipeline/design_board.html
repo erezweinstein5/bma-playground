@@ -24,6 +24,7 @@
     aside{position:fixed;top:68px;bottom:0;right:0;width:286px;background:#fff;border-left:1px solid var(--line);padding:24px 20px;overflow:auto}aside .eyebrow{margin:0 0 16px}aside h3{font-size:12px;margin:25px 0 10px}details{border-bottom:1px solid var(--line);padding:11px 0;font-size:11px}summary{cursor:pointer;font-weight:650;color:var(--green)}summary span{display:block;color:#59675e;font-weight:400;padding:5px 0 0}details p{color:#69766e;line-height:1.7}
     aside dl{font-size:10px;margin:0}dt{color:var(--muted);margin-top:12px}dd{margin:3px 0;font:10px/1.5 ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere;color:#46554a}aside a{color:var(--green);font-size:11px}
     .notes{max-width:960px;background:white;border:1px solid var(--line);padding:28px;margin-top:55px;scroll-margin-top:100px}.notes h2{margin:0 0 18px}.notes h3{font-size:13px}.notes li{font-size:12px;line-height:1.75;margin:12px 0}.notes code{font-size:10px;color:var(--green)}.notes p{color:var(--muted)}
+    .notes pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.7 ui-monospace,SFMono-Regular,monospace;color:#46554a}
     @media(min-width:1700px){main{padding-left:72px}}@media(max-width:1150px){aside{display:none}main{margin-right:0}}@media(max-width:720px){nav{display:none}main{margin-left:0;padding:95px 20px 60px}header{padding:0 16px;gap:12px}.proposal-label{display:none}h1{font-size:30px}.flow{flex-direction:column}.screen-clip{max-width:calc(100vw - 40px)}}
     @media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
   </style>
@@ -36,6 +37,7 @@
 <ol class="flow" aria-label="Proposed user flow">@@FLOW@@</ol>
 <div class="canvas">@@FRAMES@@</div>
 <section id="implementation" class="notes"><h2>Implementation plan</h2><ol>@@TASKS@@</ol></section>
+@@CONTRACT_SECTION@@
 <section id="decisions" class="notes"><h2>Decisions & open questions</h2><h3>Assumptions</h3><ul>@@ASSUMPTIONS@@</ul><h3>Material questions</h3><ul>@@QUESTIONS@@</ul><h3>Outside this feature</h3><ul>@@NON_GOALS@@</ul></section>
 </main>
 <aside aria-label="Acceptance and provenance"><p class="eyebrow">Acceptance criteria</p>@@REQUIREMENTS@@<h3>Artifact provenance</h3><dl><dt>Event</dt><dd>@@EVENTID@@</dd><dt>Source revision</dt><dd>@@BASECOMMIT@@</dd><dt>PRD SHA-256</dt><dd>@@PRDSHA256@@</dd><dt>Plan SHA-256</dt><dd>@@PLANSHA256@@</dd><dt>BMA session</dt><dd>@@SESSIONID@@</dd><dt>Planning turn</dt><dd>@@TURNID@@</dd></dl><h3>Source artifacts</h3><p><a href="plan.json">Plan JSON</a> · <a href="provenance.json">Provenance</a> · <a href="prd.md">Submitted PRD</a></p></aside>

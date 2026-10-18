@@ -1,118 +1,97 @@
-# PRD and visual planning
+# PRD-driven feature delivery
 
-The first feature is Team Workload. `demo/prds/team-workload.md` records its
-bounded product rules and AC-1 through AC-7. The feature workflow connects
-visual planning, independent acceptance authoring, implementation, fresh review,
-recorded browser verification, PR publication, and live feature acceptance.
-Installation on main and an actual issue-triggered feature release remain to
-be verified; local rehearsals are identified separately below.
+The feature workflow derives its requirements, visual proposal, observable UI
+contract, independent acceptance suite and recorded browser journey from the
+issue PRD. Team Workload was the first feature; its seven criteria and five
+screen states apply only to legacy schema 1 evidence.
 
-## Actual rehearsal
+## Try a new PRD manually
 
-On October 18, 2026 the real BMA planner inspected source revision
-`b784fa621a63ab660074f343995a425f6edf50e0` and produced a plan plus five screen
-proposals. The transcript contains six successful commands, including the
-image-owned source preparation and source inspection.
+1. Create an issue with a feature title and the PRD in its body. Describe the
+   user problem, expected behavior, acceptance criteria and non-goals.
+   Numbered `AC-N` IDs are optional: the planner preserves explicit IDs or
+   derives them from prose. The combined title/body must be 100–32000 UTF-8 bytes.
+2. Apply `agent-feature` when ready. Only configured `DEMO_OPERATORS` can trigger
+   delivery. One issue identity represents one frozen run.
+3. Open **Actions → BMA feature delivery → the run → Summary**. Once planning
+   completes, **Open the design proposal** leads to generated screens,
+   requirements, implementation tasks, assumptions, questions and the proposed
+   browser journey.
+4. The proposal is a static HTML/CSS design board, published at an immutable
+   evidence URL. It is not a new application environment. Implementation
+   continues automatically when there are no material questions; viewing the
+   design is not a required human approval step.
+5. Follow the separately named acceptance, implementation/review, browser and
+   publication steps. The resulting PR contains design and evidence links.
+   Required checks rerun the frozen feature suite on the exact PR revision.
+6. Successful required checks allow ordinary auto-merge and deployment. The
+   deployment gate verifies the served revision and reruns the suite on the
+   live app before closing the issue.
 
-- Session: `sess_aeawsylefofni2w7jykjjskzmzmtbrkwepzma`
-- Turn: `turn_rs2gg5sna7tfrtafn7x2`
-- PRD SHA-256: `48b011cd06f7eaad228ab56f70c5f9275e9430b2d9f076d22755ad9ffee08777`
-- Plan SHA-256: `72da7b98292b8f7e6a89b9416f35eb695cefd1816ab67caf739a732b1652565f`
-- [Design proposal](https://dvf0au2tge8qd.cloudfront.net/evidence/probe-feature-plan-20261018a/design-72da7b98292b8f7e-e0de395d6030/index.html)
+The user supplies product requirements, not selectors or test code. Those are
+derived during planning and acceptance authoring. Do not add the repair label:
+`agent-feature` selects this workflow.
 
-This was a local adapter rehearsal using the default AWS profile. It was not a
-GitHub issue-triggered run, a feature implementation, or a passing acceptance
-run. No source application or production deployment was changed.
+## What “any PRD” means
 
-## Data flow
+Business rules are no longer baked into the controller. New plans can have
+different criterion IDs, counts, screen types, UI hooks and browser actions.
+The current authorized implementation scope remains the existing front-end
+application under `src/`, with its installed dependencies and browser storage.
+A requirement for a new backend, dependency, authentication system, or
+infrastructure changes needs an explicit scope extension. The planner must
+surface that need as a material question rather than invent a UI-only substitute.
 
-1. A permitted operator creates or applies `agent-feature` to an open issue
-   containing the PRD and seven acceptance IDs.
-2. The workflow checks out trusted main and snapshots literal issue text,
-   source SHA, actor and issue identity. Issue content is never shell code.
-3. A private S3 claim prevents duplicate session creation. The source archive is
-   pinned and prepared by the existing image-owned helper.
-4. A fresh BMA session inspects the source and returns one structured plan with
-   requirements, implementation tasks, decisions, a flow and five HTML/CSS frames.
-5. The controller accepts only the correlated completed final answer and
-   validates the bounded schema and criterion references.
-6. A trusted design-tool viewer renders generated screen content in sandboxed,
-   opaque-origin iframes. Scripts, network access and forms are disabled.
-7. The plan, PRD, provenance and rendered viewer are published under immutable
-   content identities. The workflow summary and retained artifact provide links.
-8. A separate BMA session authors a frozen acceptance bundle from the PRD and
-   observable UI contract. The implementation session can change only `src/`.
-9. The controller executes the frozen tests and existing regressions in a
-   disposable checkout with a minimal child environment. A fresh BMA review
-   inspects each candidate. At most four corrections return to the original
-   implementation session; failed runs remain failed.
-10. A fresh browser-only BMA session demonstrates the approved feature in
-    AgentCore Browser. Its exact actions and assertions are correlated with
-    durable service output before MP4 evidence is published.
-11. The GitHub App publishes the validated source-only patch with design and
-    browser links. The required Repair acceptance job also runs the frozen
-    feature suite for the exact feature PR revision, using trusted base code
-    and public immutable evidence without AWS credentials.
-12. After ordinary required-check auto-merge, deployment verifies the
-    CloudFront revision and reruns the frozen feature suite on the live app.
-    Only matching successful live evidence allows the issue to close.
+The independent Playwright suite covers every planned criterion, including
+keyboard behavior and persistence where requested. The shorter recorded native
+browser journey illustrates the primary visual scenario; it may cover a subset
+of criteria. Supported recording actions are click, fill, select, drag, reload
+and visible-text assertions. The controller supplies the preview URL and
+validates the exact ordered tool calls and observed results.
 
-The design frame markup is generated by BMA, not prebuilt Team Workload UI.
-The surrounding viewer is a reusable presentation component. Designs are
-explicitly labeled proposals; they do not imply implemented or tested behavior.
+## Evidence and execution boundaries
 
-## Run and recover
+- The trusted main revision, original issue text and authorized actor are pinned
+  before BMA starts. PRD text is data, never shell code or permission to change
+  the controller.
+- Separate BMA sessions perform planning, acceptance authoring, implementation,
+  review and browser verification. Acceptance is frozen before implementation.
+- New schema 2 plans carry their own `uiContract` and `browserJourney`. The
+  acceptance manifest pins the complete criteria, exact case titles, journey
+  and content hashes. Candidate, browser evidence and PR metadata must match.
+- The controller runs every frozen case with no skips, retries or expected
+  failures. Existing regression suites also remain gates. At most four
+  corrections return to the original implementation session.
+- Generated design frames run in opaque-origin sandboxed iframes with scripts
+  and network access disabled. The viewer labels them as proposals.
+- Browser verification uses a candidate preview built from the pinned source
+  and approved patch. This is separate from the earlier static design board.
+- Source-only patch validation, trusted-base CI, exact-revision deployment
+  checks and ordinary branch protection remain in force.
 
-Use existing repository variables (`AWS_REGION`, `BMA_MODEL`,
-`BMA_ARTIFACT_BUCKET`, `BMA_EVIDENCE_BUCKET`, `BMA_RUNTIME_ARN`,
-`BMA_SESSION_ROLE_ARN`, and `BMA_PREVIEW_ORIGIN`, which is the app origin).
+Existing schema 1 Workload evidence remains supported without being rewritten.
+The historical `workload.acceptance.spec.js` filename is retained as a transport
+path; validated schema and frozen metadata select the business contract.
+
+## Interrupted runs and planning questions
+
+Private S3 checkpoints prevent blind resubmission. A duplicate label event does
+not create another run for an existing issue. Editing an issue does not mutate
+the frozen PRD or automatically resume planning. After a material question,
+clarify the PRD and create a new issue for a fresh run, or have the operator
+inspect and explicitly reconcile the existing run. Reconciliation retrieves
+the original result; it does not apply edited requirements.
+
+For a planning-only operator probe, use the existing repository environment
+variables (`AWS_REGION`, `BMA_MODEL`, artifact/evidence bucket names, runtime and
+session-role ARNs, and `BMA_PREVIEW_ORIGIN`):
 
 ```sh
-python pipeline/plan_feature.py --prd demo/prds/team-workload.md \
-  --base FULL_SOURCE_SHA --event probe-feature-plan-UNIQUE_ID --publish
+python pipeline/plan_feature.py --prd PATH_TO_PRD \
+  --base FULL_SOURCE_SHA --event probe-feature-plan-unique-id --publish
 ```
 
-Identifiers use lowercase letters/digits/hyphens. A repeated run refuses to
-submit another input. After inspecting an interrupted run, repeat the same
-command with `--reconcile` to retrieve its durable final answer without another
-turn. If session creation was uncertain, inspect the service before starting a
-new identity. Model-reported product questions are retained with status
-`questions`; downstream implementation must not proceed until resolved.
-
-## Installation boundary
-
-`plan-feature.yml` is prepared for maintainer review. It has not run through
-GitHub on main. The current base-owned required Repair scope check intentionally
-rejects infrastructure/workflow PRs, including PR #3. This change does not
-modify that check, merge PR #3, or bypass branch protection.
-
-The App reads branch metadata with its existing Contents permission. It checks
-that main remains protected and requires the configured acceptance job; it
-does not need Administration permission or request an override. Main's strict
-required-check setting remains configured separately.
-
-The controller's private S3 checkpoints prevent blind resubmission. A workflow
-rerun that loses local files must restore the recorded artifacts and reconcile
-the existing stage; it must not silently create replacement sessions. The
-publication checkpoint is retained in the workflow artifact and must be
-restored before retrying an uncertain publication.
-
-The first two local feature rehearsals were retained as failures. They exposed
-real view-visibility and stale-owner defects, plus controller test problems:
-ambiguous Board locators and macOS native dropdown arrow behavior. The test
-contract now uses explicit view hooks, visible-panel assertions, and native
-keyboard type-ahead. Its assertions are frozen before each new implementation.
-
-The third rehearsal exhausted four corrections. Its last two candidates passed
-all fourteen feature cases, but fresh reviews found Board keyboard-focus loss
-and stale effort validation after Reset. They remain unapproved. The next
-frozen bundle preserves those fourteen tests and adds three focused regression
-cases, including keyboard events that cannot silently refocus replaced controls.
-
-On October 18 the account's model catalog and a real BMA turn with a successful
-Runtime command verified `openai.gpt-6.1-sol`. The foundation's `BmaModel`
-parameter and GitHub's `BMA_MODEL` variable now select it. The previous rehearsals
-used `openai.gpt-5.6-luna`; their results and model identities are retained.
-
-See the event workspace's `demo-design/prd-to-feature-demo.md` for the recording
-plan and `demo-recordings/` for delivered footage and capture provenance.
+Repeated submission is refused. Use `--reconcile` only to collect the existing
+session after inspecting its state. Preserve failed attempts and exact model,
+plan and source identities. A plan or authored test suite alone is not proof of
+implementation, passing tests, or deployment.
