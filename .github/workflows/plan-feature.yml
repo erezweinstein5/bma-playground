@@ -1,0 +1,77 @@
+name: BMA feature planning
+on:
+  issues:
+    types: [opened, labeled]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: bma-feature-${{ github.event.issue.number }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: contains(github.event.issue.labels.*.name, 'agent-feature') && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Pin the trusted source revision
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Authorize and snapshot the PRD
+        id: assignment
+        env:
+          DEMO_OPERATORS: ${{ vars.DEMO_OPERATORS }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.sha }}
+        run: node scripts/prepare-feature.mjs
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: steps.assignment.outputs.prepared == 'true'
+        with:
+          python-version: '3.12'
+      - if: steps.assignment.outputs.prepared == 'true'
+        run: pip install -r pipeline/requirements.txt
+      - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100 # v5
+        if: steps.assignment.outputs.prepared == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_REPAIR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-duration-seconds: 3600
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+      - name: BMA plan and visual design proposal
+        if: steps.assignment.outputs.prepared == 'true'
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          BMA_MODEL: ${{ vars.BMA_MODEL }}
+          BMA_ARTIFACT_BUCKET: ${{ vars.BMA_ARTIFACT_BUCKET }}
+          BMA_EVIDENCE_BUCKET: ${{ vars.BMA_EVIDENCE_BUCKET }}
+          BMA_RUNTIME_ARN: ${{ vars.BMA_RUNTIME_ARN }}
+          BMA_SESSION_ROLE_ARN: ${{ vars.BMA_SESSION_ROLE_ARN }}
+          BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
+          ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
+          EVENT_ID: ${{ steps.assignment.outputs.event_id }}
+          BASE_COMMIT: ${{ steps.source.outputs.sha }}
+        run: |
+          python pipeline/plan_feature.py --prd "$ASSIGNMENT_PATH/prd.md" \
+            --base "$BASE_COMMIT" --event "$EVENT_ID" --publish
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          result = json.loads((Path(os.environ["ASSIGNMENT_PATH"]) / "planning-state.json").read_text())
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+              output.write("## BMA visual planning\n\n")
+              output.write(f"[Open the design proposal]({result['designUrl']})\n\n")
+              output.write(f"Status: **{result['status']}**. Source: `{result['baseCommit']}`.\n\n")
+              output.write("This workflow currently ends after planning. Implementation and release are separate stages.\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.assignment.outputs.prepared == 'true'
+        with:
+          name: feature-plan-${{ steps.assignment.outputs.event_id }}
+          path: ${{ steps.assignment.outputs.artifact_path }}
+          retention-days: 14
