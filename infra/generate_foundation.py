@@ -44,7 +44,7 @@ def template():
     runtime_arn = f"arn:${{AWS::Partition}}:bedrock-agentcore:{account_region}:runtime/bma_playground_codex-*"
     runtime_endpoints = runtime_arn + "/runtime-endpoint/*"
     log_prefix = f"arn:${{AWS::Partition}}:logs:{account_region}:log-group:/aws/bedrock-agentcore/runtimes/bma_playground_codex*"
-    for name in ("WebBucket", "ArtifactBucket"):
+    for name in ("WebBucket", "ArtifactBucket", "EvidenceBucket"):
         resources[name] = {
             "Type": "AWS::S3::Bucket", "DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain",
             "Properties": {
@@ -84,14 +84,23 @@ def template():
             "ViewerCertificate": {"CloudFrontDefaultCertificate": True},
         },
     }}
-    for name in ("WebBucket", "ArtifactBucket"):
+    distribution = resources["WebDistribution"]["Properties"]["DistributionConfig"]
+    distribution["Origins"].append({
+        "Id": "evidence", "DomainName": {"Fn::GetAtt": ["EvidenceBucket", "RegionalDomainName"]},
+        "OriginAccessControlId": ref("OriginAccessControl"), "S3OriginConfig": {"OriginAccessIdentity": ""},
+    })
+    distribution["CacheBehaviors"] = [
+        {**distribution["DefaultCacheBehavior"], "PathPattern": path, "TargetOriginId": "evidence"}
+        for path in ("previews/*", "evidence/*")
+    ]
+    for name in ("WebBucket", "ArtifactBucket", "EvidenceBucket"):
         statements = [{"Effect": "Deny", "Principal": "*", "Action": "s3:*",
             "Resource": [arn(name), sub("${" + name + ".Arn}/*")],
             "Condition": {"Bool": {"aws:SecureTransport": "false"}}}]
-        if name == "WebBucket":
+        if name in ("WebBucket", "EvidenceBucket"):
             statements.append({
                 "Effect": "Allow", "Principal": {"Service": "cloudfront.amazonaws.com"},
-                "Action": "s3:GetObject", "Resource": sub("${WebBucket.Arn}/*"),
+                "Action": "s3:GetObject", "Resource": sub("${" + name + ".Arn}/*"),
                 "Condition": {"StringEquals": {"AWS:SourceArn": sub(
                     "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}")}},
             })
@@ -136,6 +145,21 @@ def template():
         allow(["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"],
             sub("arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}")),
     ])
+    resources["BrowserRecordingRole"] = role(service_trust("bedrock-agentcore.amazonaws.com",
+        f"arn:${{AWS::Partition}}:bedrock-agentcore:{account_region}:*"), [
+        allow(["s3:PutObject", "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload"],
+              sub("${ArtifactBucket.Arn}/browser-recordings/*"),
+              Condition={"StringEquals": {"aws:ResourceAccount": ref("AWS::AccountId")}}),
+    ])
+    resources["DemoBrowser"] = {"Type": "AWS::BedrockAgentCore::BrowserCustom", "Properties": {
+        "Name": "bma_playground_browser",
+        "Description": "Recorded Codex browser validation for BMA Playground repairs",
+        "ExecutionRoleArn": arn("BrowserRecordingRole"),
+        "NetworkConfiguration": {"NetworkMode": "PUBLIC"},
+        "RecordingConfig": {"Enabled": True, "S3Location": {
+            "Bucket": ref("ArtifactBucket"), "Prefix": "browser-recordings"}},
+        "Tags": {"Project": "bma-playground"},
+    }}
     resources["RuntimeRole"] = role(service_trust("bedrock-agentcore.amazonaws.com",
         f"arn:${{AWS::Partition}}:bedrock-agentcore:{account_region}:*"), [
         allow(["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"], arn("RuntimeRepository")),
@@ -146,6 +170,9 @@ def template():
             "arn:aws:bedrock-mantle:*:*:project/*"),
         allow("s3:GetObject", sub("${ArtifactBucket.Arn}/sources/*")),
         allow("s3:PutObject", sub("${ArtifactBucket.Arn}/repairs/*")),
+        allow(["bedrock-agentcore:StartBrowserSession", "bedrock-agentcore:GetBrowserSession",
+               "bedrock-agentcore:StopBrowserSession", "bedrock-agentcore:ConnectBrowserAutomationStream"],
+              {"Fn::GetAtt": ["DemoBrowser", "BrowserArn"]}),
     ])
     resources["SessionRole"] = role(service_trust("bedrock-mantle.amazonaws.com",
         "arn:${AWS::Partition}:bedrock-mantle:*:${AWS::AccountId}:*"), [
@@ -167,6 +194,9 @@ def template():
         ]),
         allow("s3:ListBucket", arn("ArtifactBucket"),
             Condition={"StringLike": {"s3:prefix": ["state/*", "repairs/*"]}}),
+        allow(["s3:GetObject", "s3:PutObject"], [
+            sub("${EvidenceBucket.Arn}/previews/*"), sub("${EvidenceBucket.Arn}/evidence/*"),
+        ]),
     ])
     # AWS's BMA preview documentation defines these actions, but cfn-lint's
     # service-authorization catalog does not yet list them. Keep this exception
@@ -199,6 +229,9 @@ def template():
     outputs = {
         "WebBucket": (ref("WebBucket"), "Private website bucket"),
         "ArtifactBucket": (ref("ArtifactBucket"), "Private build, source, patch, and state bucket"),
+        "EvidenceBucket": (ref("EvidenceBucket"), "Private origin for public preview builds and PR media"),
+        "BrowserId": ({"Fn::GetAtt": ["DemoBrowser", "BrowserId"]}, "Recording-enabled AgentCore Browser"),
+        "BrowserArn": ({"Fn::GetAtt": ["DemoBrowser", "BrowserArn"]}, "Browser session permission boundary"),
         "DistributionId": (ref("WebDistribution"), "CloudFront distribution ID"),
         "AppUrl": (sub("https://${WebDistribution.DomainName}"), "Public HTTPS board URL"),
         "DeployRoleArn": (arn("DeployRole"), "GitHub Actions website deployment role"),

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src 'self' about:; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>@@TITLE@@ · BMA design proposal</title>
+  <style>
+    :root{font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#24332e;background:#f5f6f3;font-synthesis:none;--green:#174b3b;--line:#dfe4de;--muted:#64726a}
+    *{box-sizing:border-box}body{margin:0}button,a{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #187454;outline-offset:3px}
+    header{height:68px;position:fixed;inset:0 0 auto;z-index:5;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 26px}
+    .mark{width:31px;height:31px;background:var(--green);color:white;display:grid;place-items:center;border-radius:8px;font-size:12px;letter-spacing:-.08em;font-weight:700}.project{flex:1}.project strong{display:block}.project small{color:var(--muted)}
+    .proposal-label{font-size:11px;letter-spacing:.11em;text-transform:uppercase;border:1px solid #d4b775;background:#fff9e8;padding:6px 10px;border-radius:4px}
+    .toolbar{display:flex;align-items:center;gap:8px}.toolbar button{background:white;border:1px solid var(--line);border-radius:5px;padding:6px 12px;color:var(--green)}#zoom-value{min-width:46px;text-align:center;font-variant-numeric:tabular-nums}
+    nav{position:fixed;top:68px;bottom:0;left:0;width:234px;background:#fff;border-right:1px solid var(--line);padding:27px 15px;overflow:auto}
+    .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 12px 15px}.frame-link,.section-link{width:100%;text-align:left;display:flex;gap:12px;border:0;background:none;padding:12px;border-radius:5px;color:#46544c;font-size:12px}.frame-link span{color:#8e9c93;font-variant-numeric:tabular-nums}.frame-link:hover,.section-link:hover,.frame-link.active{background:#ecf4ee;color:var(--green)}nav hr{border:0;border-top:1px solid var(--line);margin:24px 12px}nav p{font-size:11px;color:var(--muted);margin:18px 12px}
+    main{margin-left:234px;margin-right:286px;padding:110px 46px 100px;min-height:100vh;background-image:radial-gradient(#cdd6cf .65px,transparent .65px);background-size:18px 18px}
+    .intro{max-width:920px;padding:0 0 30px;scroll-margin-top:100px}.intro .eyebrow{margin:0 0 16px;color:var(--green)}h1{font-size:38px;line-height:1.12;letter-spacing:-1.2px;max-width:800px;margin:0 0 20px}p{margin:8px 0}.intro p{max-width:760px;color:#526057;font-size:15px;line-height:1.65}
+    .flow{list-style:none;display:flex;gap:12px;max-width:1100px;padding:0;margin:0 0 48px}.flow li{flex:1;min-width:0;background:#fdfefc;border-top:2px solid #a3baad;padding:15px 16px}.flow b{font-size:12px}.flow p{color:var(--muted);font-size:11px}
+    .canvas{display:grid;gap:56px;align-items:start;justify-items:start}.design-frame{scroll-margin-top:100px;max-width:100%}.frame-heading{display:flex;justify-content:space-between;font:10px/1.4 ui-monospace,SFMono-Regular,monospace;color:var(--muted);letter-spacing:.06em}h2{font-size:17px;font-weight:600;letter-spacing:-.3px;margin:7px 0 18px}
+    .screen-clip{width:calc(var(--frame-width) * var(--zoom,.65));height:calc(var(--frame-height) * var(--zoom,.65));box-shadow:0 8px 26px #23372e13;overflow:hidden;background:white;border:1px solid #ccd7ce;position:relative}
+    iframe{border:0;transform:scale(var(--zoom,.65));transform-origin:top left;display:block;pointer-events:none}
+    .frame-caption{max-width:740px;font-size:12px;color:#58685e;margin:17px 0 8px}.criterion-tags{display:inline-block;font:10px/1.5 ui-monospace,SFMono-Regular,monospace;color:#33684f;background:#e7f0e8;padding:4px 8px}
+    aside{position:fixed;top:68px;bottom:0;right:0;width:286px;background:#fff;border-left:1px solid var(--line);padding:24px 20px;overflow:auto}aside .eyebrow{margin:0 0 16px}aside h3{font-size:12px;margin:25px 0 10px}details{border-bottom:1px solid var(--line);padding:11px 0;font-size:11px}summary{cursor:pointer;font-weight:650;color:var(--green)}summary span{display:block;color:#59675e;font-weight:400;padding:5px 0 0}details p{color:#69766e;line-height:1.7}
+    aside dl{font-size:10px;margin:0}dt{color:var(--muted);margin-top:12px}dd{margin:3px 0;font:10px/1.5 ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere;color:#46554a}aside a{color:var(--green);font-size:11px}
+    .notes{max-width:960px;background:white;border:1px solid var(--line);padding:28px;margin-top:55px;scroll-margin-top:100px}.notes h2{margin:0 0 18px}.notes h3{font-size:13px}.notes li{font-size:12px;line-height:1.75;margin:12px 0}.notes code{font-size:10px;color:var(--green)}.notes p{color:var(--muted)}
+    @media(min-width:1700px){main{padding-left:72px}}@media(max-width:1150px){aside{display:none}main{margin-right:0}}@media(max-width:720px){nav{display:none}main{margin-left:0;padding:95px 20px 60px}header{padding:0 16px;gap:12px}.proposal-label{display:none}h1{font-size:30px}.flow{flex-direction:column}.screen-clip{max-width:calc(100vw - 40px)}}
+    @media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+  </style>
+</head>
+<body>
+<header><div class="mark" aria-hidden="true">bma</div><div class="project"><strong>@@TITLE@@</strong><small>Planning / Design exploration</small></div><span class="proposal-label">Design proposal</span><div class="toolbar" aria-label="Canvas zoom"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-value">65%</span><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit">Fit</button></div></header>
+<nav aria-label="Design frames"><p class="eyebrow">Pages & frames</p><button class="section-link" data-target="brief">Product brief</button>@@FRAME_LINKS@@<hr><button class="section-link" data-target="implementation">Implementation plan</button><button class="section-link" data-target="decisions">Decisions & questions</button><p>Content generated by BMA from the submitted PRD and pinned source.</p><p>Frames illustrate proposed states. They are not acceptance results or the deployed application.</p></nav>
+<main>
+<section id="brief" class="intro"><p class="eyebrow">01 / Understand → design → build</p><h1>@@TITLE@@</h1><p>@@PROBLEM@@</p><p>@@APPROACH@@</p></section>
+<ol class="flow" aria-label="Proposed user flow">@@FLOW@@</ol>
+<div class="canvas">@@FRAMES@@</div>
+<section id="implementation" class="notes"><h2>Implementation plan</h2><ol>@@TASKS@@</ol></section>
+<section id="decisions" class="notes"><h2>Decisions & open questions</h2><h3>Assumptions</h3><ul>@@ASSUMPTIONS@@</ul><h3>Material questions</h3><ul>@@QUESTIONS@@</ul><h3>Outside this feature</h3><ul>@@NON_GOALS@@</ul></section>
+</main>
+<aside aria-label="Acceptance and provenance"><p class="eyebrow">Acceptance criteria</p>@@REQUIREMENTS@@<h3>Artifact provenance</h3><dl><dt>Event</dt><dd>@@EVENTID@@</dd><dt>Source revision</dt><dd>@@BASECOMMIT@@</dd><dt>PRD SHA-256</dt><dd>@@PRDSHA256@@</dd><dt>Plan SHA-256</dt><dd>@@PLANSHA256@@</dd><dt>BMA session</dt><dd>@@SESSIONID@@</dd><dt>Planning turn</dt><dd>@@TURNID@@</dd></dl><h3>Source artifacts</h3><p><a href="plan.json">Plan JSON</a> · <a href="provenance.json">Provenance</a> · <a href="prd.md">Submitted PRD</a></p></aside>
+<script>
+  let zoom=.65;
+  function setZoom(value){zoom=Math.max(.25,Math.min(1,value));document.documentElement.style.setProperty('--zoom',zoom);document.getElementById('zoom-value').textContent=Math.round(zoom*100)+'%'}
+  document.getElementById('zoom-out').addEventListener('click',()=>setZoom(zoom-.1));
+  document.getElementById('zoom-in').addEventListener('click',()=>setZoom(zoom+.1));
+  document.getElementById('fit').addEventListener('click',()=>{const widths=[...document.querySelectorAll('iframe')].map(f=>Number(f.width));setZoom((document.querySelector('main').clientWidth-96)/Math.max(...widths))});
+  document.querySelectorAll('[data-frame],[data-target]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.active').forEach(el=>el.classList.remove('active'));button.classList.add('active');document.getElementById(button.dataset.target||'frame-'+button.dataset.frame).scrollIntoView({block:'start'})}));
+</script>
+</body></html>

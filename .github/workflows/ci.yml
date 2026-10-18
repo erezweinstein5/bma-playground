@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r pipeline/requirements.txt
-      - run: python -m unittest discover -s tests -p test_pipeline.py -v
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
   scope:
     name: Repair scope
     if: github.event_name == 'pull_request'
@@ -63,9 +63,12 @@ jobs:
     name: Repair acceptance
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
@@ -83,6 +86,21 @@ jobs:
           git show "$BASE_SHA:playwright.config.js" > playwright.config.js
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test tests/browser/repair.spec.js
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: contains(github.event.pull_request.head.ref, '-issue-feature-')
+        with:
+          python-version: '3.12'
+      - name: Validate the exact feature revision against the frozen acceptance bundle
+        if: contains(github.event.pull_request.head.ref, '-issue-feature-')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BMA_PREVIEW_ORIGIN: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          BMA_TRUSTED_PIPELINE="$(mktemp -d)"
+          git archive "$BASE_SHA" pipeline | tar -x -C "$BMA_TRUSTED_PIPELINE"
+          pip install -r "$BMA_TRUSTED_PIPELINE/pipeline/requirements.txt"
+          python "$BMA_TRUSTED_PIPELINE/pipeline/feature_delivery.py" ci
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -90,3 +108,4 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            artifacts/feature-delivery-ci/

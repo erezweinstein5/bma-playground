@@ -7,6 +7,12 @@ The first demo follows a visible application repair:
 
 **GitHub issue → BMA / Codex → PR → checks → automatic merge → deploy.**
 
+Repairs now include recorded AgentCore Browser verification: Codex reproduces
+the bug on an isolated before preview, repairs the code, and validates an after
+preview. The PR contains screenshots, full MP4 recordings,
+and a report tied to the tested source. See [browser evidence](docs/browser-evidence.md)
+for live viewing and a rehearsal that leaves production fixed.
+
 ## Run locally
 
 Use Node 24, then:
@@ -21,7 +27,7 @@ Open the local URL printed by Vite. The app is a responsive task board, with
 drag and drop, accessible status menus, search, completion progress, and local
 storage. It has no external fonts, services, or image requests.
 
-## The demo defect
+## The original demo defect
 
 Reset the board, then move **Build the onboarding flow** from **In progress**
 to **Done**. It stays in its old column and progress stays at **2 of 6 / 33%**.
@@ -36,7 +42,7 @@ npm run test:repair
 ```
 
 The first three commands verify the baseline. **`test:repair` deliberately
-fails on the broken baseline.** It is a real regression test, not a simulated
+fails on the historical broken baseline and passes on repaired main.** It is a real regression test, not a simulated
 failure. All PRs must pass this acceptance check once the workflow is installed
 on `main`; the initial baseline is committed directly to `main` during setup.
 The PR check loads its acceptance test and browser configuration from the base
