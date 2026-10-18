@@ -9,6 +9,21 @@ Keep the storage key `bma-playground.board.v1`. Its value is an array of the
 six existing tasks. Preserve existing card IDs, titles, status controls,
 `#search`, `#reset`, `#announcement`, progress selectors, and all board tests.
 Initial statuses and task IDs remain unchanged. Reset returns the seeded data.
+Reset also discards unsaved effort input and clears transient effort validation
+errors. Visible effort inputs return to their seeded values, stale errors are
+hidden or removed, `aria-invalid` is no longer true, and `aria-describedby` no
+longer references stale errors. Unrelated help text may remain associated.
+Persisted owners, efforts and statuses return to seed; the reset announcement
+replaces any previous validation failure.
+
+## Source boundary
+
+`index.html` is protected and remains the original Board shell. It has no
+Workload panel or Board/Workload view buttons. Create the required `#workload`
+panel and view buttons from application code within `src/` before their first
+use or render. Preserve the original `#board`, host controls, accessible names
+and Board behavior when adding these elements. Acceptance observes the running
+UI; it must not inject missing markup or require an edit to `index.html`.
 
 ## Feature hooks and behavior
 
@@ -39,7 +54,11 @@ Initial statuses and task IDs remain unchanged. Reset returns the seeded data.
 - `#announcement` remains a live region. Successful reassignment mentions
   the task title and new owner; successful effort edits mention the task.
 - Existing board `select[data-status-for="TASK_ID"]` completes/reopens tasks.
-  Workload reflects these status changes whenever opened.
+  After a keyboard status edit, focus stays on that task's visible Board status
+  select in its destination column, including a move to Done and reopening
+  from Done. Board stays selected; focus must not move to a hidden Workload
+  owner control or fall back to the page body. Workload reflects these status
+  changes whenever opened.
 
 ## Seed and migration fixtures
 
@@ -76,6 +95,20 @@ cases must cover all seven criteria, including:
    error association and subsequent successful recovery.
 9. Valid effort endpoints 1 and 8, Done exclusion, and strictly-greater overload.
 10. Reset returns the complete seeded board/workload state.
+11. Keyboard Board status edits between active columns retain focus on the
+    moved task's visible status select after each edit.
+12. Keyboard completion and reopening retain that same Board status focus,
+    with the correct column, progress, announcement and workload consequence.
+13. Reset after a rejected effort edit clears the associated error state and
+    restores seeded inputs and persisted fields, even after prior valid edits.
+
+For the new Board focus cases, focus the status select once to begin a keyboard
+interaction and use native type-ahead for the existing labels (`t` for To do,
+`i` for In progress, `d` for Done), followed by Enter. Send these keys through
+`page.keyboard` so a locator action cannot silently refocus a replacement
+control after rendering. Assert the visible status select is focused before
+any further click, focus call or view switch. Do not use `selectOption` or
+programmatically dispatch changes to stand in for these keyboard actions.
 
 Fixtures should use the app's seeded tasks captured from localStorage after
 reset, then mutate explicit fields and reload. Isolate every test. Assert

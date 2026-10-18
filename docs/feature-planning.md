@@ -103,5 +103,16 @@ ambiguous Board locators and macOS native dropdown arrow behavior. The test
 contract now uses explicit view hooks, visible-panel assertions, and native
 keyboard type-ahead. Its assertions are frozen before each new implementation.
 
+The third rehearsal exhausted four corrections. Its last two candidates passed
+all fourteen feature cases, but fresh reviews found Board keyboard-focus loss
+and stale effort validation after Reset. They remain unapproved. The next
+frozen bundle preserves those fourteen tests and adds three focused regression
+cases, including keyboard events that cannot silently refocus replaced controls.
+
+On October 18 the account's model catalog and a real BMA turn with a successful
+Runtime command verified `openai.gpt-6.1-sol`. The foundation's `BmaModel`
+parameter and GitHub's `BMA_MODEL` variable now select it. The previous rehearsals
+used `openai.gpt-5.6-luna`; their results and model identities are retained.
+
 See the event workspace's `demo-design/prd-to-feature-demo.md` for the recording
 plan and `demo-recordings/` for delivered footage and capture provenance.
