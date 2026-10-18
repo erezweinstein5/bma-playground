@@ -68,6 +68,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          # The feature gate verifies that the pinned base is an ancestor.
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:

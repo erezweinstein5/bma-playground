@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Live feature verification compares this revision with its original base.
+          fetch-depth: 0
           persist-credentials: false
       - name: Skip a superseded revision
         id: current
