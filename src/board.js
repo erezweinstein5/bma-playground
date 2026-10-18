@@ -57,9 +57,10 @@ export function completion(tasks) {
   return { done, total: tasks.length, percent: tasks.length ? Math.round(done / tasks.length * 100) : 0 };
 }
 
-export function filterTasks(tasks, query) {
+export function filterTasks(tasks, query, teammate = 'All') {
   const normalized = query.trim().toLowerCase();
-  return tasks.filter((task) => `${task.title} ${task.description} ${task.category} ${task.owner}`.toLowerCase().includes(normalized));
+  return tasks.filter((task) => (teammate === 'All' || task.owner === teammate)
+    && `${task.title} ${task.description} ${task.category} ${task.owner}`.toLowerCase().includes(normalized));
 }
 
 export function restoreTasks(raw) {
