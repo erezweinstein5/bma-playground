@@ -31,7 +31,8 @@ IDENTITIES = ("baseCommit", "patchSha256", "acceptanceSha256", "contractSha256",
               "planSha256", "prdSha256")
 LOADS = {owner: f'[data-workload-owner="{owner}"] [data-workload-load]'
          for owner in ("Maya", "Erez")}
-OWNER = 'select[data-owner-for="mobile"]'
+# Both views may retain controls in the DOM; target the demonstrated Workload view.
+OWNER = '#workload select[data-owner-for="mobile"]'
 AVATAR = '[data-task-id="mobile"] .avatar'
 WORKLOAD = '[data-view="workload"]'
 BOARD = '[data-view="board"]'
