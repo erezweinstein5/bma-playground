@@ -5,6 +5,12 @@ export const COLUMNS = [
   { id: 'done', label: 'Done', caption: 'Ready for the world', number: '03' },
 ];
 
+export const EFFORT_DEFAULTS = { welcome: 8, mobile: 4, shortcuts: 2, onboarding: 2, tokens: 3, repo: 3 };
+export const TEAMMATES = [
+  { name: 'Maya', capacity: 8, initials: 'MK', color: 'lilac' },
+  { name: 'Erez', capacity: 8, initials: 'EW', color: 'blue' },
+];
+
 const INITIAL_TASKS = [
   { id: 'welcome', title: 'Polish the welcome screen', description: 'Make that first hello feel a little more human.', status: 'todo', category: 'Design', priority: 'High', owner: 'Maya', initials: 'MK', color: 'lilac', note: 'First impressions' },
   { id: 'shortcuts', title: 'Add keyboard shortcuts', description: 'A faster way around for people who know where they’re going.', status: 'todo', category: 'Product', priority: 'Normal', owner: 'Erez', initials: 'EW', color: 'blue', note: 'Quality of life' },
@@ -15,7 +21,7 @@ const INITIAL_TASKS = [
 ];
 
 export function initialTasks() {
-  return structuredClone(INITIAL_TASKS);
+  return INITIAL_TASKS.map((task) => ({ ...task, effort: EFFORT_DEFAULTS[task.id] }));
 }
 
 export function moveTask(tasks, taskId, destination) {
@@ -39,11 +45,47 @@ export function restoreTasks(raw) {
   try {
     const saved = JSON.parse(raw);
     if (!Array.isArray(saved) || saved.length !== INITIAL_TASKS.length) return initialTasks();
-    const byId = new Map(saved.map((task) => [task?.id, task?.status]));
+    // Invalid envelopes reset completely. Within a valid envelope fields fall back
+    // independently; display copy is always local, and avatars follow the owner.
+    const byId = new Map(saved.map((task) => [task?.id, task]));
     const statuses = new Set(COLUMNS.map((column) => column.id));
-    if (byId.size !== INITIAL_TASKS.length || INITIAL_TASKS.some((task) => !statuses.has(byId.get(task.id)))) return initialTasks();
-    return initialTasks().map((task) => ({ ...task, status: byId.get(task.id) }));
+    if (byId.size !== INITIAL_TASKS.length || INITIAL_TASKS.some((task) => !byId.has(task.id))) return initialTasks();
+    return initialTasks().map((task) => {
+      const entry = byId.get(task.id);
+      const person = TEAMMATES.find((person) => person.name === entry.owner);
+      return { ...task,
+        status: statuses.has(entry.status) ? entry.status : task.status,
+        owner: person ? person.name : task.owner,
+        initials: person ? person.initials : task.initials,
+        color: person ? person.color : task.color,
+        effort: validEffort(entry.effort) ? entry.effort : task.effort,
+      };
+    });
   } catch {
     return initialTasks();
   }
+}
+
+export function validEffort(value) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 8;
+}
+
+export function assignTask(tasks, taskId, owner) {
+  const person = TEAMMATES.find((person) => person.name === owner);
+  if (!person) return tasks;
+  return tasks.map((task) => task.id === taskId
+    ? { ...task, owner, initials: person.initials, color: person.color } : task);
+}
+
+export function setEffort(tasks, taskId, effort) {
+  if (!validEffort(effort)) return tasks;
+  return tasks.map((task) => task.id === taskId ? { ...task, effort } : task);
+}
+
+export function workloadTotals(tasks) {
+  return TEAMMATES.map((person) => {
+    const active = tasks.filter((task) => task.owner === person.name && ['todo', 'doing'].includes(task.status))
+      .reduce((sum, task) => sum + task.effort, 0);
+    return { ...person, active, overloaded: active > person.capacity };
+  });
 }
