@@ -1,5 +1,5 @@
 import './style.css';
-import { COLUMNS, STORAGE_KEY, completion, filterTasks, initialTasks, moveTask, restoreTasks } from './board.js';
+import { COLUMNS, STORAGE_KEY, completion, filterTasks, initialTasks, moveTask, restoreTasks, TEAMMATES, assignTask, setEffort, validEffort, workloadTotals } from './board.js';
 
 const board = document.querySelector('#board');
 const search = document.querySelector('#search');
@@ -8,6 +8,30 @@ let persisted;
 try { persisted = localStorage.getItem(STORAGE_KEY); } catch { /* The board works without storage. */ }
 let tasks = restoreTasks(persisted);
 let draggedId = null;
+let selectedView = 'board';
+const drafts = new Map();
+const errors = new Set();
+const workload = document.createElement('div');
+workload.id = 'workload';
+workload.hidden = true;
+board.after(workload);
+const switcher = document.createElement('div');
+switcher.className = 'view-switch';
+switcher.setAttribute('role', 'group');
+switcher.setAttribute('aria-label', 'Launch view');
+switcher.innerHTML = ['board', 'workload'].map((view) =>
+  `<button type="button" data-view="${view}" aria-controls="${view}" aria-pressed="${view === selectedView}">${view === 'board' ? 'Board' : 'Workload'}</button>`).join('');
+document.querySelector('.board-view').replaceWith(switcher);
+switcher.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-view]');
+  if (!button) return;
+  selectedView = button.dataset.view;
+  board.hidden = selectedView !== 'board';
+  workload.hidden = selectedView !== 'workload';
+  switcher.querySelectorAll('button').forEach((control) => control.setAttribute('aria-pressed', String(control.dataset.view === selectedView)));
+  document.querySelector('.skip-link').href = `#${selectedView}`;
+});
+workload.tabIndex = -1;
 
 const icons = {
   grip: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="4" r="1.2"/><circle cx="11" cy="4" r="1.2"/><circle cx="5" cy="8" r="1.2"/><circle cx="11" cy="8" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="11" cy="12" r="1.2"/></svg>',
@@ -15,7 +39,7 @@ const icons = {
 };
 
 function card(task) {
-  // Task copy is a fixed local dataset; persisted input only restores validated status IDs.
+  // Display copy is trusted local data; persisted editable fields are validated.
   return `<article class="task-card ${task.status === 'done' ? 'is-done' : ''}" draggable="true" data-task-id="${task.id}" aria-label="${task.title}">
     <div class="card-top"><span class="category category-${task.category.toLowerCase()}">${task.category}</span><span class="drag-handle">${icons.grip}</span></div>
     <h3>${task.title}</h3><p class="card-description">${task.description}</p>
@@ -26,7 +50,44 @@ function card(task) {
   </article>`;
 }
 
+function escapeAttribute(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function workloadRow(task) {
+  const invalid = errors.has(task.id);
+  return `<article class="task-card workload-card" data-workload-task="${task.id}">
+    <div class="card-top"><span class="category category-${task.category.toLowerCase()}">${task.category}</span><span>${COLUMNS.find((column) => column.id === task.status).label}</span></div>
+    <h3>${task.title}</h3><p class="card-description">${task.description}</p>
+    <div class="workload-controls">
+      <label>Owner<select data-owner-for="${task.id}" aria-label="Owner for ${task.title}">${TEAMMATES.map(({ name }) => `<option value="${name}" ${task.owner === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
+      <label>Effort<input type="text" inputmode="numeric" data-effort-for="${task.id}" aria-label="Effort for ${task.title}" value="${escapeAttribute(drafts.get(task.id) ?? task.effort)}" ${invalid ? `aria-invalid="true" aria-describedby="effort-error-${task.id}"` : ''}></label>
+      <button type="button" data-save-effort-for="${task.id}" aria-label="Save effort for ${task.title}">Save</button>
+    </div>
+    ${invalid ? `<p class="effort-error" id="effort-error-${task.id}">Enter a whole number from 1 to 8. Previous saved effort remains ${task.effort} points.</p>` : ''}
+  </article>`;
+}
+
+function renderWorkload(filtered) {
+  const totals = workloadTotals(tasks);
+  workload.innerHTML = `<p class="workload-context">Active effort · To do + In progress. Totals include hidden search results; Done adds zero.</p><div class="workload-lanes">${TEAMMATES.map((person) => {
+    const total = totals[person.name];
+    const visible = filtered.filter((task) => task.owner === person.name && task.status !== 'done');
+    return `<section data-workload-owner="${person.name}" aria-label="${person.name} workload">
+      <div class="workload-summary ${total > person.capacity ? 'over-capacity' : ''}">
+        <div class="workload-person"><span class="avatar avatar-${person.color}">${person.initials}</span><h3>${person.name}<small>Capacity · ${person.capacity} points</small></h3><strong data-workload-load>${total} / ${person.capacity} points</strong></div>
+        <div class="capacity-bar" aria-hidden="true"><i style="width:${Math.min(total / person.capacity * 100, 100)}%"></i></div>
+        ${total > person.capacity ? `<p data-overload-warning>! Over capacity · ${total - person.capacity} points over</p>` : `<p>${total === person.capacity ? 'At capacity · Not overloaded' : `${person.capacity - total} points available`}</p>`}
+      </div>
+      <div class="workload-list">${visible.map(workloadRow).join('') || '<p class="empty-column">No matching active tasks.</p>'}</div>
+    </section>`;
+  }).join('')}</div>`;
+}
+
 function render(focusTaskId) {
+  const active = document.activeElement;
+  const focusHook = ['data-owner-for', 'data-effort-for', 'data-save-effort-for', 'data-status-for'].find((hook) => active?.hasAttribute(hook));
+  const focusId = focusHook ? active.getAttribute(focusHook) : null;
   const filtered = filterTasks(tasks, search.value);
   board.innerHTML = COLUMNS.map((column) => {
     const visible = filtered.filter((task) => task.status === column.id);
@@ -35,6 +96,7 @@ function render(focusTaskId) {
       <div class="card-list">${visible.map(card).join('')}<div class="drop-placeholder" aria-hidden="true">A little step forward</div>${!visible.length ? '<p class="empty-column">Room for what’s next.</p>' : ''}</div>
     </section>`;
   }).join('');
+  renderWorkload(filtered);
   const progress = completion(tasks);
   document.querySelector('#progress-percent').textContent = `${progress.percent}%`;
   document.querySelector('#completion-count').textContent = `${progress.done} of ${progress.total} tasks`;
@@ -43,6 +105,7 @@ function render(focusTaskId) {
   const result = document.querySelector('#search-result');
   result.hidden = !search.value.trim();
   result.textContent = `${filtered.length} ${filtered.length === 1 ? 'task matches' : 'tasks match'} “${search.value.trim()}”`;
+  if (focusHook) document.querySelector(`[${focusHook}="${focusId}"]`)?.focus();
   if (focusTaskId) document.querySelector(`select[data-status-for="${focusTaskId}"]`)?.focus();
 }
 
@@ -72,7 +135,7 @@ board.addEventListener('change', (event) => {
 });
 board.addEventListener('dragstart', (event) => {
   const element = event.target.closest('[data-task-id]');
-  if (!element || event.target.closest('select')) return;
+  if (!element || event.target.closest('input, select, button')) return;
   draggedId = element.dataset.taskId;
   event.dataTransfer.setData('text/plain', draggedId);
   event.dataTransfer.effectAllowed = 'move';
@@ -99,9 +162,52 @@ function finishDrag() {
   board.classList.remove('is-dragging');
   document.querySelectorAll('.is-dragging, .is-over').forEach((element) => element.classList.remove('is-dragging', 'is-over'));
 }
+workload.addEventListener('input', (event) => {
+  const input = event.target.closest('[data-effort-for]');
+  if (input) drafts.set(input.dataset.effortFor, input.value);
+});
+workload.addEventListener('change', (event) => {
+  const select = event.target.closest('[data-owner-for]');
+  if (!select) return;
+  const task = tasks.find((task) => task.id === select.dataset.ownerFor);
+  tasks = assignTask(tasks, task.id, select.value);
+  save();
+  render();
+  announcement.textContent = `${task.title} reassigned to ${select.value}.`;
+});
+function commitEffort(id) {
+  const task = tasks.find((task) => task.id === id);
+  const raw = drafts.get(id) ?? String(task.effort);
+  const value = Number(raw);
+  if (!raw.trim() || !validEffort(value)) {
+    errors.add(id);
+    render();
+    announcement.textContent = `Effort for ${task.title} was not saved. Enter a whole number from 1 to 8.`;
+    return;
+  }
+  tasks = setEffort(tasks, id, value);
+  drafts.delete(id);
+  errors.delete(id);
+  save();
+  render();
+  announcement.textContent = `Effort for ${task.title} saved as ${value} points.`;
+}
+workload.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-save-effort-for]');
+  if (button) commitEffort(button.dataset.saveEffortFor);
+});
+workload.addEventListener('keydown', (event) => {
+  const input = event.target.closest('[data-effort-for]');
+  if (input && event.key === 'Enter') {
+    event.preventDefault();
+    commitEffort(input.dataset.effortFor);
+  }
+});
 search.addEventListener('input', () => render());
 document.querySelector('#reset').addEventListener('click', () => {
   tasks = initialTasks();
+  drafts.clear();
+  errors.clear();
   search.value = '';
   save();
   render();
@@ -119,3 +225,6 @@ document.addEventListener('keydown', (event) => {
   }
 });
 render();
+
+// Normalize migrated storage immediately; storage failure keeps in-memory edits usable.
+save();

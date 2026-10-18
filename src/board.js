@@ -14,8 +14,36 @@ const INITIAL_TASKS = [
   { id: 'repo', title: 'Lay the groundwork', description: 'One repository, a working build, and a place to begin.', status: 'done', category: 'Engineering', priority: 'Normal', owner: 'Erez', initials: 'EW', color: 'blue', note: 'Foundations in place' },
 ];
 
+export const TEAMMATES = [
+  { name: 'Maya', initials: 'MK', color: 'lilac', capacity: 8 },
+  { name: 'Erez', initials: 'EW', color: 'blue', capacity: 8 },
+];
+const EFFORT_DEFAULTS = { welcome: 8, mobile: 4, shortcuts: 2, onboarding: 2, tokens: 3, repo: 3 };
+
+export function validEffort(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 8;
+}
+
+export function assignTask(tasks, taskId, owner) {
+  const teammate = TEAMMATES.find((person) => person.name === owner);
+  if (!teammate) return tasks;
+  return tasks.map((task) => task.id === taskId
+    ? { ...task, owner, initials: teammate.initials, color: teammate.color } : task);
+}
+
+export function setEffort(tasks, taskId, effort) {
+  if (!validEffort(effort)) return tasks;
+  return tasks.map((task) => task.id === taskId ? { ...task, effort } : task);
+}
+
+export function workloadTotals(tasks) {
+  return Object.fromEntries(TEAMMATES.map(({ name }) => [name,
+    tasks.filter((task) => task.owner === name && ['todo', 'doing'].includes(task.status))
+      .reduce((total, task) => total + task.effort, 0)]));
+}
+
 export function initialTasks() {
-  return structuredClone(INITIAL_TASKS);
+  return structuredClone(INITIAL_TASKS).map((task) => ({ ...task, effort: EFFORT_DEFAULTS[task.id] }));
 }
 
 export function moveTask(tasks, taskId, destination) {
@@ -39,10 +67,23 @@ export function restoreTasks(raw) {
   try {
     const saved = JSON.parse(raw);
     if (!Array.isArray(saved) || saved.length !== INITIAL_TASKS.length) return initialTasks();
-    const byId = new Map(saved.map((task) => [task?.id, task?.status]));
+    // Structural corruption resets the board. Individual invalid/missing fields
+    // fall back independently; saved display copy and avatar data are never trusted.
+    const byId = new Map(saved.map((task) => [task?.id, task]));
     const statuses = new Set(COLUMNS.map((column) => column.id));
-    if (byId.size !== INITIAL_TASKS.length || INITIAL_TASKS.some((task) => !statuses.has(byId.get(task.id)))) return initialTasks();
-    return initialTasks().map((task) => ({ ...task, status: byId.get(task.id) }));
+    if (byId.size !== INITIAL_TASKS.length || INITIAL_TASKS.some((task) => !byId.has(task.id))) return initialTasks();
+    return initialTasks().map((task) => {
+      const stored = byId.get(task.id);
+      const person = TEAMMATES.find((person) => person.name === stored.owner);
+      return {
+        ...task,
+        status: statuses.has(stored.status) ? stored.status : task.status,
+        owner: person?.name ?? task.owner,
+        initials: person?.initials ?? task.initials,
+        color: person?.color ?? task.color,
+        effort: validEffort(stored.effort) ? stored.effort : task.effort,
+      };
+    });
   } catch {
     return initialTasks();
   }
