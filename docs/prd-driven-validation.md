@@ -48,6 +48,12 @@ This verifies the generalized execution path with actual browser results; it
 does not substitute for implementing or releasing the card-density feature.
 The source application and live deployment were unchanged.
 
+A separate local Chromium probe exercised the existing native-browser action
+methods and validated a 12-step generic trace: fill, clear, select, normal-sized
+drag and reload. It did not exercise AgentCore connection or cloud recording.
+The existing runtime's fixed drag offsets can miss very small drag handles;
+that runtime limitation is unchanged by this controller refactor.
+
 ## Regression coverage
 
 Offline suites cover unrelated prose PRDs, explicit/non-contiguous criteria,
@@ -55,7 +61,7 @@ legacy evidence, design iframe isolation, partial recorded journeys with full
 acceptance coverage, wrong-feature evidence, malformed or downgraded metadata,
 restored-check revalidation and exact publication/report identities. The
 workflow YAML and both embedded Python summary blocks were syntax-checked.
-All 221 Python pipeline tests and 17 Node unit tests passed, and the application
+All 226 Python pipeline tests and 17 Node unit tests passed, and the application
 build passed. Existing board and repair browser checks also passed in the real
 disposable-runner probe.
 

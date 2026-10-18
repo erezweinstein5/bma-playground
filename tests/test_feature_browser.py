@@ -38,6 +38,27 @@ def plan_fixture():
                         for kind in ("balanced", "mobile", "overloaded", "validation", "wireframe")]}
 
 
+def prd_checks_fixture(plan, patch_sha, acceptance_sha):
+    from feature_checks import parse_feature_report
+    from test_feature_checks import report_fixture, specs
+    ids = sorted(browser.requirement_ids(plan))
+    report = report_fixture(count=len(ids), project_names=("desktop",))
+    for row, ref in zip(specs(report), ids):
+        row["title"] = f"[{ref}] observable behavior"
+    commands = ("canonical-patch", "clone", "checkout-base", "verify-base", "apply-candidate",
+                "protected-inputs", "npm-ci", "npm-test", "npm-build", "board-browser",
+                "repair-browser", "feature-browser")
+    return {
+        **parse_feature_report(report, expected_titles=[row["title"] for row in specs(report)],
+                               required_ids=ids),
+        "schemaVersion": 1, "baseCommit": BASE, "patchSha256": patch_sha,
+        "acceptanceSha256": acceptance_sha, "actualAcceptanceSha256": acceptance_sha,
+        "status": "passed", "infrastructureFailure": False,
+        "commands": [{"name": name, "status": "passed", "exitCode": 0, "timedOut": False}
+                     for name in commands],
+    }
+
+
 def candidate_fixture(patch_bytes=b"verified patch", plan=None, prd=b"Feature PRD"):
     plan = plan or plan_fixture()
     patch_sha, acceptance_sha = browser.digest(patch_bytes), "b" * 64
@@ -53,8 +74,29 @@ def candidate_fixture(patch_bytes=b"verified patch", plan=None, prd=b"Feature PR
                        "acceptanceSha256": acceptance_sha, "findings": [], "summary": "Approved"}}
     if plan["schemaVersion"] == 2:
         candidate.update(contractSha256=browser.digest(plan["uiContract"].encode()),
-                         browserJourneySha256=browser.digest(browser.canonical_json(plan["browserJourney"])))
+                         browserJourneySha256=browser.digest(browser.canonical_json(plan["browserJourney"])),
+                         checks=prd_checks_fixture(plan, patch_sha, acceptance_sha))
     return candidate
+
+
+def prd_provenance_fixture(candidate):
+    return {"schemaVersion": 2, "planSchemaVersion": 2, "eventId": EVENT, "status": "planned",
+            "sessionId": "sess_planning", "turnId": "turn_planning",
+            **{key: candidate[key] for key in ("baseCommit", "planSha256", "prdSha256")}}
+
+
+def prd_acceptance_fixture(plan, candidate, spec):
+    candidate["acceptanceSha256"] = browser.digest(spec)
+    candidate["checks"] = prd_checks_fixture(plan, candidate["patchSha256"], candidate["acceptanceSha256"])
+    candidate["review"]["acceptanceSha256"] = candidate["acceptanceSha256"]
+    return {"schemaVersion": 2, "eventId": EVENT, "status": "authored-not-executed",
+            "sessionId": "sess_acceptance", "turnId": "turn_acceptance",
+            **{key: candidate[key] for key in
+               ("baseCommit", "acceptanceSha256", "contractSha256", "planSha256", "prdSha256")},
+            **browser.journey_binding(plan),
+            "cases": [{"title": row["title"], "acceptanceIds": row["acceptanceIds"],
+                       "purpose": "Verify observable behavior"}
+                      for row in candidate["checks"]["featureCases"]]}
 
 
 def descriptor_fixture():
@@ -295,7 +337,7 @@ class InputTests(unittest.TestCase):
         self.plan = prd_plan_fixture()
         self.candidate = candidate_fixture(plan=self.plan)
         self.candidate["contractSha256"] = browser.digest(self.plan["uiContract"].encode())
-        self.provenance["planSha256"] = self.candidate["planSha256"]
+        self.provenance = prd_provenance_fixture(self.candidate)
         self.write_inputs()
         identity = self.validate()[-1]
         self.assertEqual(identity["acceptanceIds"], ["AC-2", "AC-9"])
@@ -316,7 +358,7 @@ class InputTests(unittest.TestCase):
         self.plan["requirements"][-1].update(behavior="Keyboard saves the form",
                                             verification="Independent Playwright keyboard test")
         self.candidate = candidate_fixture(plan=self.plan)
-        self.provenance["planSha256"] = self.candidate["planSha256"]
+        self.provenance = prd_provenance_fixture(self.candidate)
         self.write_inputs()
         identity = self.validate()[-1]
         self.assertEqual(identity["acceptanceIds"], ["AC-12", "AC-2", "AC-9"])
@@ -349,6 +391,151 @@ class InputTests(unittest.TestCase):
         bad = b"diff --git a/other b/other\nnew file mode 100644\n--- /dev/null\n+++ b/other\n@@ -0,0 +1 @@\n+x\n"
         with self.assertRaisesRegex(ValueError, "src/"):
             canonical_patch(repo, base, bad)
+
+
+class GenericPreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.planning, self.acceptance = self.root / "planning", self.root / "acceptance"
+        self.planning.mkdir()
+        self.acceptance.mkdir()
+        self.path = self.root / "candidate.json"
+        self.argv = ["--event", EVENT, "--candidate", str(self.path),
+                     "--planning", str(self.planning), "--acceptance", str(self.acceptance)]
+        self.patch = b"verified patch"
+        self.spec = b"frozen acceptance spec"
+        canonical = patch.object(browser, "canonical_patch", return_value=self.patch)
+        canonical.start()
+        self.addCleanup(canonical.stop)
+        self.reset_inputs()
+
+    def reset_inputs(self):
+        self.plan = prd_plan_fixture(extra_ids=["AC-12"])
+        self.candidate = candidate_fixture(plan=self.plan)
+        self.manifest = prd_acceptance_fixture(self.plan, self.candidate, self.spec)
+        self.provenance = prd_provenance_fixture(self.candidate)
+        self.write_inputs()
+
+    def write_inputs(self):
+        self.path.write_bytes(browser.canonical_json(self.candidate))
+        self.path.with_name("verified.patch").write_bytes(self.patch)
+        (self.planning / "plan.json").write_bytes(browser.canonical_json(self.plan))
+        (self.planning / "provenance.json").write_bytes(browser.canonical_json(self.provenance))
+        (self.planning / "prd.md").write_bytes(b"Feature PRD")
+        (self.acceptance / "manifest.json").write_bytes(browser.canonical_json(self.manifest))
+        (self.acceptance / "workload.acceptance.spec.js").write_bytes(self.spec)
+        (self.acceptance / "ui-contract.md").write_text(self.plan["uiContract"])
+
+    def assert_rejected_before_cloud(self):
+        with patch.object(browser.boto3, "Session") as aws, \
+                patch.object(browser, "run_browser") as run:
+            with self.assertRaises(ValueError):
+                browser.main(self.argv)
+            aws.assert_not_called()
+            run.assert_not_called()
+
+    def test_complete_generic_report_passes_both_preflight_gates(self):
+        candidate, _, plan, _, identity = browser.validate_inputs(
+            EVENT, self.path, self.planning, self.root)
+        with patch.object(browser, "validate_check_binding", wraps=browser.validate_check_binding) as check:
+            manifest, spec, contract = browser.validate_acceptance_bundle(
+                EVENT, candidate, self.acceptance, plan=plan)
+            check.assert_called_once_with(candidate["checks"], BASE, candidate["patchSha256"],
+                                          manifest, required_ids=["AC-12", "AC-2", "AC-9"])
+        self.assertEqual(spec, self.spec)
+        self.assertEqual(contract, self.plan["uiContract"].encode())
+        self.assertEqual(identity["acceptanceIds"], ["AC-12", "AC-2", "AC-9"])
+        self.assertEqual(candidate["checks"]["executedFeatureCases"], 3)
+
+    def test_foreign_unready_or_invalid_planning_provenance_stops_before_cloud(self):
+        changes = [("eventId", "probe-other-feature"), ("status", "questions"),
+                   ("status", "submitting"), ("status", None),
+                   ("schemaVersion", 1), ("schemaVersion", True),
+                   ("planSchemaVersion", 1), ("planSchemaVersion", None),
+                   ("planSchemaVersion", True)]
+        changes += [(field, value) for field in ("sessionId", "turnId")
+                    for value in (None, "", " ", 1, "wrong-stage-id", "sess_bad\n", "turn_" + "a" * 121)]
+        for field, value in changes:
+            with self.subTest(field=field, value=value):
+                self.reset_inputs()
+                self.provenance[field] = value
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+        for field in ("sessionId", "turnId", "schemaVersion", "planSchemaVersion", "status", "eventId"):
+            with self.subTest(missing=field):
+                self.reset_inputs()
+                self.provenance.pop(field)
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+
+    def test_unresolved_plan_or_changed_explicit_prd_ids_stops_before_cloud(self):
+        for questions in (["Which behavior should be shown?"], None):
+            with self.subTest(questions=questions):
+                self.reset_inputs()
+                self.plan["questions"] = questions
+                checksum = browser.digest(browser.canonical_json(self.plan))
+                self.candidate["planSha256"] = self.provenance["planSha256"] = checksum
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+        self.reset_inputs()
+        prd = b"AC-99: This is a different explicit requirement."
+        checksum = browser.digest(prd)
+        self.candidate["prdSha256"] = self.provenance["prdSha256"] = checksum
+        self.write_inputs()
+        (self.planning / "prd.md").write_bytes(prd)
+        self.assert_rejected_before_cloud()
+
+    def test_empty_partial_or_fabricated_success_stops_before_cloud(self):
+        changes = [
+            {"commands": [], "featureCases": [], "coveredAcceptanceIds": [],
+             "executedFeatureCases": 0, "executedProjectCases": 0},
+            {"commands": []}, {"featureCases": []}, {"coveredAcceptanceIds": []},
+            {"coveredAcceptanceIds": ["AC-2", "AC-9"]},
+            {"executedFeatureCases": 0}, {"executedProjectCases": 0},
+            {"actualAcceptanceSha256": "f" * 64}, {"status": "failed"},
+            {"infrastructureFailure": True}, {"passed": False},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                self.reset_inputs()
+                self.candidate["checks"].update(change)
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+        for field in ("commands", "featureCases", "coveredAcceptanceIds",
+                      "executedFeatureCases", "executedProjectCases", "actualAcceptanceSha256"):
+            with self.subTest(missing=field):
+                self.reset_inputs()
+                self.candidate["checks"].pop(field)
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+        for field, value in (("title", "[AC-2] Another feature"), ("executed", False),
+                             ("outcomes", ["passed", "passed"]), ("passed", False),
+                             ("acceptanceIds", ["AC-99"]), ("project", "mobile")):
+            with self.subTest(case_field=field, value=value):
+                self.reset_inputs()
+                self.candidate["checks"]["featureCases"][0][field] = value
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+        for field, value in (("exitCode", 1), ("exitCode", False), ("timedOut", True),
+                             ("status", "failed"), ("name", "fabricated-command")):
+            with self.subTest(command_field=field, value=value):
+                self.reset_inputs()
+                self.candidate["checks"]["commands"][0][field] = value
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
+
+    def test_malformed_or_unknown_criterion_review_stops_before_cloud(self):
+        for change in ({"summary": None}, {"schemaVersion": True},
+                       {"findings": [{"severity": "minor", "path": "src/main.js", "line": 1,
+                                      "acceptanceIds": ["AC-99"], "title": "Unknown criterion",
+                                      "evidence": "Observed", "requestedChange": "Correct it"}]}):
+            with self.subTest(change=change):
+                self.reset_inputs()
+                self.candidate["review"].update(change)
+                self.write_inputs()
+                self.assert_rejected_before_cloud()
 
 
 class FeatureActionTests(unittest.TestCase):
@@ -1022,10 +1209,7 @@ class AcceptancePublicationTests(unittest.TestCase):
         plan = prd_plan_fixture(extra_ids=["AC-12"])
         candidate = candidate_fixture(plan=plan)
         spec, contract = b"frozen acceptance spec", plan["uiContract"].encode()
-        candidate["acceptanceSha256"] = browser.digest(spec)
-        manifest = {key: candidate[key] for key in
-                    ("baseCommit", "acceptanceSha256", "contractSha256", "planSha256", "prdSha256")}
-        manifest.update(schemaVersion=2, eventId=EVENT, **browser.journey_binding(plan))
+        manifest = prd_acceptance_fixture(plan, candidate, spec)
         s3 = FakeS3()
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

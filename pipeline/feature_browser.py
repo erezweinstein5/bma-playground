@@ -25,7 +25,8 @@ from browser_evidence import (MAX_CAPTURE, browser_tool_configuration, collect_p
                               validate_browser_calls, validate_manifest)
 from design_board import canonical_json, render_board, validate_plan
 from feature_contract import (plan_contract, plan_journey, requirement_ids,
-                              validate_journey)
+                              validate_journey, validate_planning_identity)
+from feature_cycle import validate_check_binding, validate_review
 from patch_boundary import canonical_patch
 
 
@@ -128,6 +129,12 @@ def validate_inputs(event, candidate_path, planning, source):
     provenance = json_object(read_file(planning / "provenance.json"))
     plan = validate_plan(json_object(read_file(planning / "plan.json")))
     prd = read_file(planning / "prd.md")
+    if plan["schemaVersion"] == 2:
+        validate_planning_identity(plan, prd.decode(), provenance, event)
+        for field, prefix in (("sessionId", "sess_"), ("turnId", "turn_")):
+            if (not isinstance(provenance.get(field), str)
+                    or not re.fullmatch(prefix + r"[A-Za-z0-9_-]{1,120}", provenance[field])):
+                raise ValueError(f"Planning requires a valid {field}")
     checks, review = candidate.get("checks"), candidate.get("review")
     if (candidate.get("schemaVersion") != 1 or candidate.get("passed") is not True
             or not isinstance(checks, dict) or checks.get("passed") is not True
@@ -672,6 +679,16 @@ def validate_acceptance_bundle(event, candidate, acceptance, plan=None):
             raise ValueError("Acceptance UI contract differs from the frozen plan")
         if candidate.get("browserJourneySha256") != binding["browserJourneySha256"]:
             raise ValueError("Approved browser journey differs from the frozen plan")
+        checks = candidate.get("checks")
+        if (candidate.get("passed") is not True or not isinstance(checks, dict)
+                or checks.get("passed") is not True):
+            raise ValueError("Browser preflight requires passed independent checks")
+        validate_check_binding(checks, candidate["baseCommit"], candidate["patchSha256"],
+                               manifest, required_ids=ids)
+        review = validate_review(candidate.get("review"), candidate["patchSha256"],
+                                 candidate["acceptanceSha256"], required_ids=ids)
+        if review["verdict"] != "approve":
+            raise ValueError("Browser preflight requires an approving review")
     return manifest, spec, contract
 
 

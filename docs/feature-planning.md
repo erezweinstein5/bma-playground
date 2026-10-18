@@ -16,7 +16,7 @@ screen states apply only to legacy schema 1 evidence.
 3. Open **Actions → BMA feature delivery → the run → Summary**. Once planning
    completes, **Open the design proposal** leads to generated screens,
    requirements, implementation tasks, assumptions, questions and the proposed
-   browser journey.
+   browser journey. The planning step also prints the design URL in its logs.
 4. The proposal is a static HTML/CSS design board, published at an immutable
    evidence URL. It is not a new application environment. Implementation
    continues automatically when there are no material questions; viewing the
