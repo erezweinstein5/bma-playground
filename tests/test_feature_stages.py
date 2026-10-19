@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 from feature_stages import FeatureStages, acceptance_prompt, digest, final_json, validate_acceptance
-from feature_cycle import validate_check_binding, validate_review
+from feature_cycle import reviewer_prompt, validate_check_binding, validate_review
 
 
 def final(turn="turn", value=None):
@@ -17,6 +17,39 @@ def final(turn="turn", value=None):
 
 
 class StageTests(unittest.TestCase):
+    def test_legacy_review_prompt_matches_the_pre_skill_deployed_controller(self):
+        # Captured from main e206d8f before the skill extraction, not from this helper.
+        prompt = reviewer_prompt("PRD", {}, "contract", b"patch", {},
+                                 "patch-sha", "acceptance-sha", "spec", legacy=True)
+        self.assertEqual(digest(prompt.encode()),
+                         "b5433899581a7aecb9420799233f6f2c4d9c4172b0a369ef52317a956e7d5241")
+
+    def test_pre_skill_review_can_be_collected_but_different_candidate_cannot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stages = FeatureStages.__new__(FeatureStages)
+            stages.event, stages.base, stages.directory = "probe-skills", "a" * 40, Path(temporary)
+            stages.bucket = "bucket"
+            identity = {"baseCommit": stages.base, "promptSha256": digest(b"old task"),
+                        "instructionsSha256": digest(b"review role"), "sourceArchiveSha256": None,
+                        "patchSha256": "candidate"}
+            stored = {"identity": identity, "sessionId": "old-session", "outcome": {"turnId": "turn"}}
+            stages.read = Mock(return_value=json.dumps(stored).encode())
+            stages.save, stages.client = Mock(), Mock()
+            stages.client.get_session.return_value = {"status": "idle"}
+            stages.client.items.return_value = [final()]
+            state, _ = stages.run("review-1", "review role", "new task", skill_name="bma-review",
+                                 legacy_prompt="old task", extra_identity={"patchSha256": "candidate"})
+            self.assertEqual(state["identity"], identity)
+            stages.client.create.assert_not_called()
+            stages.client.run_turn.assert_not_called()
+            for old_prompt, patch_sha in (("different old task", "candidate"),
+                                          ("old task", "different candidate")):
+                with self.subTest(prompt=old_prompt, patch=patch_sha), self.assertRaises(ValueError):
+                    stages.run("review-1", "review role", "new task", skill_name="bma-review",
+                               legacy_prompt=old_prompt, extra_identity={"patchSha256": patch_sha})
+            stages.client.create.assert_not_called()
+            stages.client.run_turn.assert_not_called()
+
     def test_review_skill_is_registered_only_for_the_assigned_session(self):
         for name in ("bma-review", None):
             with self.subTest(skill=name), tempfile.TemporaryDirectory() as temporary:

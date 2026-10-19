@@ -51,14 +51,37 @@ def implementation_prompt(prd, plan, contract, acceptance, export):
     )
 
 
-def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sha, acceptance):
+# Exact pre-skill guidance is retained only to recognize already-submitted reviews.
+LEGACY_REVIEW_GUIDANCE = (
+        "Review the PRD, design, applicable data migration, accessible validation/focus, "
+        "regressions and the independent acceptance spec/results. Passing tests alone are "
+        "not approval. The candidate intentionally contains src/ only. Its acceptance "
+        "bundle is independently versioned outside the patch and is supplied below with "
+        "its hash; do not demand that protected tests be added to the application patch. "
+        "The controller owns test execution and dependencies. An infrastructure/setup "
+        "failure must be reported as a pipeline limitation, not a request to alter "
+        "application code or to write a replacement acceptance bundle. "
+        "A strict-mode locator error does not by itself establish a product defect: "
+        "distinguish ambiguous substring matching in a test from genuinely duplicate "
+        "exact accessible names. Do not recommend hiding or renaming valid controls "
+        "to accommodate an ambiguous test. Check actual visibility against CSS "
+        "and distinguish intentional PRD changes from unintended regressions. "
+        "Identify real defects or missing criteria; never invent a finding "
+        "to create a demo correction. End by checking git status --porcelain to confirm "
+        "you left the snapshot unchanged.\n"
+)
+
+
+def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sha, acceptance,
+                    *, legacy=False):
     return (
         "Independently review this exact candidate. The supplied source archive already "
         "contains the candidate application changes; its baseline identity is in the "
         "preparation metadata. Inspect source with file/line references. Read-only task: "
         "do not edit or export code, run network calls, read credentials, or access GitHub. "
-        "Apply the bma-review skill. The candidate intentionally contains src/ only; "
-        "the controller supplies its separately frozen acceptance bundle and results below.\n"
+        + (LEGACY_REVIEW_GUIDANCE if legacy else
+           "Apply the bma-review skill. The candidate intentionally contains src/ only; "
+           "the controller supplies its separately frozen acceptance bundle and results below.\n") +
         "Return ONLY JSON: schemaVersion=1, verdict='approve' or 'request_changes', "
         f"patchSha256={patch_sha!r}, acceptanceSha256={acceptance_sha!r}, "
         "summary (string), and findings (array of {severity:'blocker'|'major'|'minor', "
@@ -316,7 +339,9 @@ def main():
                 reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
                                 manifest["acceptanceSha256"], acceptance),
                 archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree},
-                skill_name="bma-review")
+                skill_name="bma-review",
+                legacy_prompt=reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
+                    manifest["acceptanceSha256"], acceptance, legacy=True))
             review = validate_review(final_json(review_items, review_state["outcome"]["turnId"]),
                                      patch_sha, manifest["acceptanceSha256"], required_ids)
             result = {"schemaVersion": 1, "attempt": attempt, "baseCommit": base,

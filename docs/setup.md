@@ -67,6 +67,8 @@ Codex plugins and their `SKILL.md` instructions. The Dockerfile copies them to
 `/opt/bma/plugins/bma-review/skills`. Both roles explicitly read and use their
 assigned skill. Acceptance, implementation, and browser sessions keep their
 existing instructions/tools and do not register either skill directory.
+Already-submitted pre-skill reviews can still collect their original result
+when all original input hashes match; they never submit another turn.
 
 The skills contain reusable role guidance. PRDs, concrete output schemas,
 source/hash identities, permissions and deterministic gates remain controller
