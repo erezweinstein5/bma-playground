@@ -11,6 +11,28 @@ TERMINAL = {"agent.session.turn.completed", "agent.session.turn.failed",
             "agent.session.turn.cancelled"}
 
 
+def wait_for_session_idle(client, session_id, runtime_arn, *, timeout=45, poll_interval=1):
+    """Read-only settling after turn completion; never start or resubmit a turn."""
+    deadline = time.monotonic() + timeout
+    while True:
+        current = client.get_session(session_id)
+        status = current.get("status")
+        if current.get("environment", {}).get("runtime_arn") != runtime_arn:
+            raise RuntimeError("Browser session Runtime identity changed; no retry submitted")
+        if current.get("error") or status in {"failed", "cancelled", "deleted"}:
+            raise RuntimeError(f"Browser session failed ({status}); no retry submitted")
+        if status == "idle":
+            return current
+        if status not in {"running", "in_progress", "queued", "starting"}:
+            raise RuntimeError(f"Unexpected browser session status {status!r}; no retry submitted")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"Browser session is still {status} after {timeout}s. "
+                "Its checkpoint is preserved; rerun to collect the same turn. No retry submitted")
+        time.sleep(min(poll_interval, remaining))
+
+
 def sse_events(lines):
     data = []
     for line in lines:

@@ -7,11 +7,11 @@ import tempfile
 import tarfile
 import importlib.util
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 from patch_boundary import canonical_patch, git
-from bma_client import sse_events, BmaClient
+from bma_client import sse_events, BmaClient, wait_for_session_idle
 spec = importlib.util.spec_from_file_location("workspace_io",
     Path(__file__).resolve().parents[1] / "runtime/tools/workspace_io.py")
 workspace_io = importlib.util.module_from_spec(spec)
@@ -101,6 +101,36 @@ class PatchBoundaryTests(unittest.TestCase):
 
 
 class StreamTests(unittest.TestCase):
+    def test_completed_turn_can_settle_to_idle_with_only_read_calls(self):
+        client = Mock()
+        client.get_session.side_effect = [
+            {"status": status, "environment": {"runtime_arn": "runtime"}}
+            for status in ("running", "running", "idle")]
+        with patch("bma_client.time.sleep") as sleep:
+            self.assertEqual(wait_for_session_idle(client, "session", "runtime")["status"], "idle")
+        self.assertEqual(client.get_session.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        client.create.assert_not_called()
+        client.run_turn.assert_not_called()
+
+    def test_settling_is_bounded_and_never_accepts_failed_or_wrong_runtime(self):
+        for session in [
+            {"status": "running", "environment": {"runtime_arn": "runtime"}},
+            {"status": "failed", "environment": {"runtime_arn": "runtime"}},
+            {"status": "idle", "error": {"code": "failure"}, "environment": {"runtime_arn": "runtime"}},
+            {"status": "idle", "environment": {"runtime_arn": "other"}},
+            {"status": "unexpected", "environment": {"runtime_arn": "runtime"}},
+        ]:
+            client = Mock()
+            client.get_session.return_value = session
+            with self.subTest(session=session), patch("bma_client.time.sleep") as sleep:
+                with self.assertRaises(RuntimeError):
+                    wait_for_session_idle(client, "session", "runtime", timeout=0)
+                sleep.assert_not_called()
+            client.get_session.assert_called_once_with("session")
+            client.create.assert_not_called()
+            client.run_turn.assert_not_called()
+
     def test_disconnect_recovers_new_final_without_resubmitting(self):
         import requests
 

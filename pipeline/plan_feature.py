@@ -21,8 +21,10 @@ from botocore.exceptions import ClientError
 
 from bma_client import BmaClient
 from bma_skills import skill_configuration
-from design_board import final_plan, save_board
+from design_board import canonical_json, final_plan, save_board
 from feature_contract import validate_prd_requirements
+from feature_intake import (CONFLICTS, PlanningClaim, report_result, restore_design,
+                            validate_state)
 
 SCHEMA = {
     "schemaVersion": 2, "title": "Feature title", "problem": "PM problem",
@@ -59,6 +61,14 @@ def write_checkpoint(path, value):
     pending = path.with_suffix(".pending")
     pending.write_text(json.dumps(value, indent=2))
     pending.replace(path)
+
+
+def ensure_pinned_source(base):
+    """Old workflow reruns may have checked out only the newer main commit."""
+    if subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"],
+                      capture_output=True).returncode:
+        subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", base], check=True)
+        subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"], check=True)
 
 
 def make_prompt(event, base, bucket, source_digest, prd, prd_digest):
@@ -197,6 +207,11 @@ def main():
     parser.add_argument("--reconcile", action="store_true",
                         help="Inspect an existing submitted session; never resend its input")
     args = parser.parse_args()
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+    if not re.fullmatch(r"[1-9][0-9]*", attempt):
+        raise ValueError("Invalid GitHub run attempt")
+    rerun = int(attempt) > 1
+    reconcile = args.reconcile or rerun
     if (not re.fullmatch(r"(issue|comment|probe)-[a-z0-9-]+", args.event)
             or not re.fullmatch(r"[0-9a-f]{40}", args.base)):
         raise ValueError("Invalid pinned planning identity")
@@ -205,7 +220,8 @@ def main():
         raise ValueError("PRD must be 100-32000 UTF-8 bytes")
     prd = prd_bytes.decode()
     prd_digest = hashlib.sha256(prd_bytes).hexdigest()
-    directory = Path("artifacts") / args.event
+    directory = (args.prd.parent if (args.prd.parent / "assignment.json").exists()
+                 else Path("artifacts") / args.event)
     directory.mkdir(parents=True, exist_ok=True)
     checkpoint = directory / "planning-state.json"
     region = os.environ["AWS_REGION"]
@@ -214,37 +230,76 @@ def main():
                     retries={"mode": "standard", "max_attempts": 5}))
     client = BmaClient(aws, region)
     bucket = os.environ["BMA_ARTIFACT_BUCKET"]
-    if args.reconcile and not checkpoint.exists():
-        with s3.get_object(Bucket=bucket, Key=f"state/features/{args.event}/planning.json")["Body"] as stream:
-            raw = stream.read(100_001)
-        if len(raw) > 100_000:
-            raise ValueError("Oversized planning checkpoint")
-        write_checkpoint(checkpoint, json.loads(raw))
-    if checkpoint.exists():
-        state = json.loads(checkpoint.read_text())
-        if state["baseCommit"] != args.base or state["prdSha256"] != prd_digest:
-            raise ValueError("Existing planning run has a different source or PRD")
-        if not args.reconcile:
-            raise RuntimeError("Run already exists; use --reconcile to inspect, never resubmit")
+    claim = PlanningClaim(s3, bucket, args.event)
+    state = claim.read()
+    assignment_path = directory / "assignment.json"
+    assignment = json.loads(assignment_path.read_text()) if assignment_path.exists() else None
+    if assignment and (assignment.get("eventId") != args.event
+                       or assignment.get("prdSha256") != prd_digest
+                       or assignment.get("prd") != prd):
+        raise ValueError("Assignment differs from the planning identity or PRD")
+
+    def existing_claim(value):
+        validate_state(value, args.event, prd_digest)
+        original = value.get("assignment")
+        if original and assignment and any(original.get(key) != assignment.get(key)
+                for key in ("eventId", "repository", "issueNumber", "title", "prd", "prdSha256")):
+            raise ValueError("Existing planning claim differs from the original issue identity")
+        if not reconcile:
+            report_result("skipped", value,
+                "Duplicate feature trigger skipped. The durable claim already owns this PRD. "
+                "To recover, rerun the original GitHub run; incomplete or uncertain sessions "
+                "must be inspected before continuing.")
+            return False
+        return True
+
+    if state is not None and not existing_claim(state):
+        return 0
+    if state is not None:
+        if rerun and os.environ.get("GITHUB_EVENT_PATH"):
+            # The old workflow also reaches this path: its --base is current main.
+            # Reauthorize its original event, then restore the original assignment pin.
+            if not assignment or assignment_path.parent != args.prd.parent:
+                raise ValueError("GitHub recovery requires the original assignment adjacent to --prd")
+            write_checkpoint(checkpoint, state)
+            subprocess.run(["node", str(Path(__file__).resolve().parents[1] /
+                            "scripts/prepare-feature.mjs"), "--restore-planning", str(checkpoint)],
+                           check=True)
+            assignment = json.loads(assignment_path.read_text())
+            args.base = assignment["baseCommit"]
+            ensure_pinned_source(args.base)
+        if state["baseCommit"] != args.base:
+            raise ValueError("Existing planning run has a different source; reconcile using "
+                             f"--base {state['baseCommit']}")
         if not state.get("sessionId"):
-            raise RuntimeError("Session creation was uncertain; inspect service before a new run")
+            raise RuntimeError("Session creation was uncertain; inspect the original run and "
+                               "service before continuing. No agent input was resubmitted.")
         session_id = state["sessionId"]
         current = client.get_session(session_id)
         if current.get("status") != "idle" or current.get("error"):
             raise RuntimeError("Session is not idle without error; inspect before continuing")
         items = client.items(session_id)
-        turns = {item["turn_id"] for item in items
-                 if item.get("type") == "message" and item.get("role") == "assistant"
-                 and item.get("phase") == "final_answer" and item.get("status") == "completed"}
-        if len(turns) != 1 or any(item.get("status") in {"in_progress", "queued", "incomplete"}
-                                 for item in items):
-            raise RuntimeError("No unambiguous completed planning turn to reconcile")
+        turns = {item.get("turn_id") for item in items if item.get("turn_id")}
+        if len(turns) != 1 or any(item.get("status") in {
+                "in_progress", "queued", "incomplete", "failed", "cancelled"}
+                or item.get("error") or item.get("type", "").endswith((".failed", ".cancelled"))
+                for item in items):
+            raise RuntimeError("No unambiguous completed planning turn to reconcile; "
+                               "inspect the original session. No agent input was resubmitted.")
         turn_id = turns.pop()
+        if state.get("turnId") and state["turnId"] != turn_id:
+            raise ValueError("Completed planning turn differs from its pinned turn")
+        if state.get("terminalEvent") not in {None, "agent.session.turn.completed"}:
+            raise ValueError("Planning checkpoint records a failed terminal event; inspect the session")
         outcome = ({"turnId": state["turnId"],
-                    **{key: state[key] for key in ("completionSource", "terminalEvent") if key in state}}
+                    **{key: state[key] for key in ("completionSource", "terminalEvent", "finalMessageId")
+                       if key in state}}
                    if state.get("turnId") == turn_id else
                    {"turnId": turn_id, "completionSource": "durable_items"})
     else:
+        if reconcile or checkpoint.exists():
+            raise RuntimeError("No durable planning claim to recover; inspect the original run "
+                               "and service. A rerun never creates a session or resubmits input.")
         archive = subprocess.check_output(["git", "archive", "--format=tar", args.base])
         if len(archive) > 5 * 1024 * 1024:
             raise ValueError("Source exceeds the runtime preparation limit")
@@ -253,14 +308,30 @@ def main():
                  "eventId": args.event, "baseCommit": args.base,
                  "prdSha256": prd_digest, "sourceArchiveSha256": source_digest,
                  "createdAt": datetime.now(timezone.utc).isoformat(), "status": "claiming"}
-        write_checkpoint(checkpoint, state)
+        if assignment:
+            if assignment.get("baseCommit") != args.base or assignment.get("schemaVersion") != 2:
+                raise ValueError("Assignment differs from the claimed planning source or schema")
+            state["assignment"] = assignment
+            if os.environ.get("GITHUB_RUN_ID"):
+                state["githubRunId"] = os.environ["GITHUB_RUN_ID"]
         # The private S3 claim survives runner loss and prevents a second session
         # from a duplicate issue/workflow invocation.
-        s3.put_object(Bucket=bucket, Key=f"state/features/{args.event}/planning.json",
-                      Body=json.dumps(state).encode(), ContentType="application/json", IfNoneMatch="*")
+        try:
+            claim.write(state, create=True)
+        except ClientError as error:
+            if error.response["Error"]["Code"] not in CONFLICTS:
+                raise
+            winner = claim.read()
+            if winner is None:
+                raise RuntimeError("Planning claim conflicted without a readable winner; "
+                                   "inspect the original run before retrying") from error
+            existing_claim(winner)
+            return 0
+        write_checkpoint(checkpoint, state)
         s3.put_object(Bucket=bucket, Key=f"sources/{args.event}.tar", Body=archive,
                       ContentType="application/x-tar", IfNoneMatch="*")
         state["status"] = "creating_session"
+        claim.write(state)
         write_checkpoint(checkpoint, state)
         skill = skill_configuration("bma-design")
         session = client.create({
@@ -278,9 +349,8 @@ def main():
         })
         session_id = session["id"]
         state.update({"sessionId": session_id, "status": "submitting"})
+        claim.write(state)
         write_checkpoint(checkpoint, state)
-        s3.put_object(Bucket=bucket, Key=f"state/features/{args.event}/planning.json",
-                      Body=json.dumps(state).encode(), ContentType="application/json")
         print("BMA planning session: " + session_id, flush=True)
         prompt = make_prompt(args.event, args.base, bucket, source_digest, prd, prd_digest)
         (directory / "prompt.txt").write_text(prompt)
@@ -290,17 +360,30 @@ def main():
     validate_preparation(items, outcome["turnId"], args.event, args.base)
     plan = validate_planning_result(items, outcome["turnId"], prd,
         expected_version=state.get("planSchemaVersion", state.get("schemaVersion", 1)))
+    if reconcile and state.get("designUrl"):
+        if state["status"] != ("questions" if plan["questions"] else "planned"):
+            raise ValueError("Published planning readiness differs from the recovered plan")
+        restore_design(s3, state, plan, prd_bytes, directory / "design")
+        write_checkpoint(checkpoint, state)
+        report_result("restored", state, "Restored the original published plan, provenance and "
+                      "design URL. No planning session or agent input was created.")
+        return 0
     metadata = {**{key: value for key, value in state.items() if key != "designUrl"},
                 **outcome, "status": "questions" if plan["questions"] else "planned"}
+    if state.get("planSha256"):
+        if hashlib.sha256(canonical_json(plan)).hexdigest() != state["planSha256"]:
+            raise ValueError("Recovered plan differs from its pinned hash")
     metadata = save_board(plan, metadata, directory / "design")
     (directory / "design" / "prd.md").write_bytes(prd_bytes)
     if args.publish:
         metadata["designUrl"] = publish(s3, directory / "design", metadata, prd_bytes)
         print("Design proposal: " + metadata["designUrl"], flush=True)
+    claim.write(metadata)
     write_checkpoint(checkpoint, metadata)
-    s3.put_object(Bucket=bucket, Key=f"state/features/{args.event}/planning.json",
-                  Body=json.dumps(metadata).encode(), ContentType="application/json")
     print("Planning status: " + metadata["status"] + ". Implementation has not started.", flush=True)
+    report_result("restored" if reconcile else metadata["status"], metadata,
+                  "Planning reconciled without resubmitting input." if reconcile
+                  else "Planning completed; independent acceptance and review remain required.")
     return 0
 
 

@@ -75,12 +75,29 @@ path; validated schema and frozen metadata select the business contract.
 
 ## Interrupted runs and planning questions
 
-Private S3 checkpoints prevent blind resubmission. A duplicate label event does
-not create another run for an existing issue. Editing an issue does not mutate
-the frozen PRD or automatically resume planning. After a material question,
-clarify the PRD and create a new issue for a fresh run, or have the operator
-inspect and explicitly reconcile the existing run. Reconciliation retrieves
-the original result; it does not apply edited requirements.
+The workflow starts on the `agent-feature` label event, including when the label
+is selected while creating the issue. It no longer also starts on `opened`.
+GitHub can still list a skipped job for an unrelated label because workflow
+event filters do not select label names.
+
+Private S3 checkpoints allow only one planning session per issue. Reapplying the
+label produces a successful **skipped** summary when that PRD already has a
+claim. It does not restart the delivery or overwrite its state.
+
+For an interrupted delivery, inspect the original run, then choose **Re-run all
+jobs** on that run. The retry restores the original PRD, source revision,
+published design bytes and provenance, and collects completed stages without
+resubmitting their agent input. A completed browser turn can briefly precede the
+session becoming idle; collection waits up to 45 seconds and preserves the
+turn ID if the wait expires. A failed, ambiguous or changed session still stops
+the run for inspection.
+
+Recovery does not rebase a candidate. Publication still requires `main` to match
+the tested base. If `main` has advanced, recover the original evidence for
+inspection and create a new issue to plan and validate against the new source.
+Editing an existing issue cannot change its frozen PRD. After a material
+planning question, clarify the PRD in a new issue; reconciliation only retrieves
+the original result.
 
 For a planning-only operator probe, use the existing repository environment
 variables (`AWS_REGION`, `BMA_MODEL`, artifact/evidence bucket names, runtime and
@@ -91,7 +108,7 @@ python pipeline/plan_feature.py --prd PATH_TO_PRD \
   --base FULL_SOURCE_SHA --event probe-feature-plan-unique-id --publish
 ```
 
-Repeated submission is refused. Use `--reconcile` only to collect the existing
+Repeated submission is skipped. Use `--reconcile` only to collect the existing
 session after inspecting its state. Preserve failed attempts and exact model,
 plan and source identities. A plan or authored test suite alone is not proof of
 implementation, passing tests, or deployment.
