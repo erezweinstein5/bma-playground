@@ -133,6 +133,31 @@ class StageTests(unittest.TestCase):
                             module.main()
                     stages.assert_not_called()
 
+    def test_acceptance_prompt_allows_empty_focus_without_weakening_coverage(self):
+        prd, contract = "Pinned PRD requirements", "Pinned observable UI contract"
+        for version, ids in ((1, [f"AC-{n}" for n in range(1, 8)]),
+                             (2, ["AC-4", "AC-12"])):
+            with self.subTest(schemaVersion=version):
+                plan = {"schemaVersion": version,
+                        "requirements": [{"id": ref, "behavior": f"Requirement {ref}"}
+                                         for ref in ids]}
+                prompt = acceptance_prompt(prd, plan, contract)
+                for guidance in (
+                    "focus may leave the document",
+                    "do not assume :focus always matches an element after Tab",
+                    "forbidden target combined with :focus",
+                    "toHaveCount(0)",
+                    "no focused element is a valid result",
+                    "Avoid negated text or attribute assertions on a generic :focus locator",
+                    "Preserve all PRD requirements, exact [AC-N] tags, and configured browser coverage",
+                    "No skip/fixme/only",
+                ):
+                    self.assertIn(guidance, prompt)
+                self.assertIn(f"schemaVersion={version}", prompt)
+                self.assertTrue(prompt.endswith(
+                    "\nPRD:\n" + prd + "\nPLANNED REQUIREMENTS:\n" +
+                    json.dumps(plan["requirements"]) + "\nUI CONTRACT:\n" + contract))
+
     def test_generic_acceptance_uses_the_complete_pinned_criteria_not_seven(self):
         from test_design_board import preferences_plan
         plan = preferences_plan()

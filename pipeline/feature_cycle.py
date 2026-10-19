@@ -6,6 +6,7 @@ Browser verification and GitHub release are subsequent gates.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -17,6 +18,8 @@ from feature_contract import (LEGACY_AC_IDS, plan_contract, plan_journey, requir
                               validate_acceptance_ids, validate_planning_identity)
 from feature_stages import FeatureStages, digest, final_json, source_archive, validate_acceptance
 from patch_boundary import canonical_patch, git
+from acceptance_recovery import (eligible, freeze_bundle, recover, select_bundle,
+                                 unchanged_failure, validate_recovery)
 
 
 def implementation_prompt(prd, plan, contract, acceptance, export):
@@ -104,7 +107,9 @@ def review_archive(source, base, patch):
         git(repo, "checkout", "--quiet", "--detach", base)
         git(repo, "apply", "--index", "-", input=patch)
         tree = git(repo, "write-tree").decode().strip()
-        return git(repo, "archive", "--format=tar", tree), tree
+        # A tree archive otherwise uses the wall clock as its mtime. Identical
+        # candidates must retain identical source bytes when a stage resumes.
+        return git(repo, "archive", "--format=tar", "--mtime=1970-01-01T00:00:00Z", tree), tree
 
 
 def validate_review(value, patch_sha, acceptance_sha, required_ids=None):
@@ -183,6 +188,71 @@ def validate_check_binding(checks, base, patch_sha, manifest, required_ids=None)
         raise ValueError("Stored checks: " + "; ".join(errors))
 
 
+def acceptance_identity(manifest, required_ids):
+    identity = {key: manifest[key] for key in
+                ("acceptanceSha256", "contractSha256", "planSha256", "prdSha256")}
+    if required_ids is not None:
+        identity["browserJourneySha256"] = manifest["browserJourneySha256"]
+        identity["acceptanceManifestSha256"] = digest(canonical_json(manifest))
+    return identity
+
+
+def evaluate_candidate(*, stages, candidate, attempt, base, patch, patch_sha,
+                       archive, tree, prd, plan, contract, manifest, acceptance_path,
+                       required_ids, recheck_infrastructure=False):
+    """Each acceptance version has separate immutable results and a fresh review."""
+    from feature_checks import check_candidate
+    candidate.mkdir(parents=True, exist_ok=True)
+    checks_path = candidate / "checks.json"
+    checks_key = (f"state/features/{stages.event}/checks/{attempt}/"
+                  f"{manifest['acceptanceSha256']}/checks.json")
+    if not checks_path.exists():
+        saved_checks = stages.read(checks_key, optional=True, limit=1_000_000)
+        if saved_checks:
+            checks_path.write_bytes(saved_checks)
+    if checks_path.exists() and recheck_infrastructure:
+        old_checks = json.loads(checks_path.read_text())
+        installation = next((row for row in old_checks.get("commands", [])
+                             if row["name"] == "npm-ci"), None)
+        if not installation or installation["status"] != "passed":
+            checks_path.replace(candidate / f"checks-setup-failure-{digest(checks_path.read_bytes())[:12]}.json")
+    if checks_path.exists():
+        checks = json.loads(checks_path.read_text())
+    else:
+        checks = check_candidate(Path.cwd(), base, patch, acceptance_path,
+                                 candidate / "checks", manifest["acceptanceSha256"],
+                                 expected_titles=[case["title"] for case in manifest["cases"]],
+                                 required_ids=required_ids)
+        checks_path.write_text(json.dumps(checks, indent=2))
+    validate_check_binding(checks, base, patch_sha, manifest, required_ids)
+    if checks.get("infrastructureFailure") is True:
+        stages.s3.put_object(Bucket=stages.bucket, Key=f"state/features/{stages.event}/check-block.json",
+            Body=json.dumps({"attempt": attempt, "patchSha256": patch_sha,
+                             "status": "infrastructure-failed", "checks": checks}).encode(),
+            ContentType="application/json")
+        raise RuntimeError("Check infrastructure failed. Fix the runner, then recheck this same candidate; no code correction submitted.")
+    # Keep exact failure evidence stable across runner loss before any BMA review
+    # or diagnosis is submitted. Reruns collect those same bound sessions.
+    stages.freeze(checks_key, checks_path.read_bytes(), "application/json")
+    review_version = digest(canonical_json(checks))[:12]
+    identity = acceptance_identity(manifest, required_ids)
+    acceptance = acceptance_path.read_text()
+    review_state, review_items = stages.run(f"review-{attempt}-{review_version}",
+        "You are a fresh independent reviewer. Inspect the assigned candidate source "
+        "and evidence. Do not change files or export a patch; do not read credentials "
+        "or access external systems. Return only the requested structured review. "
+        "Find real actionable defects and never manufacture feedback for a demo.",
+        reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
+                        manifest["acceptanceSha256"], acceptance),
+        archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree},
+        skill_name="bma-review",
+        legacy_prompt=reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
+            manifest["acceptanceSha256"], acceptance, legacy=True))
+    review = validate_review(final_json(review_items, review_state["outcome"]["turnId"]),
+                             patch_sha, manifest["acceptanceSha256"], required_ids)
+    return checks, review, review_state
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--planning", type=Path, required=True)
@@ -195,7 +265,6 @@ def main():
     parser.add_argument("--extend-correction-budget", action="store_true",
                         help="Explicitly record a larger budget after inspecting a stopped run; never resets attempts")
     args = parser.parse_args()
-    from feature_checks import check_candidate
     directory = Path("artifacts") / args.event
     provenance = json.loads((args.planning / "provenance.json").read_text())
     plan = validate_plan(json.loads((args.planning / "plan.json").read_text()))
@@ -226,10 +295,8 @@ def main():
         if (manifest.get("browserJourney") != journey
                 or manifest.get("browserJourneySha256") != digest(canonical_json(journey))):
             raise ValueError("Acceptance browser journey differs from the pinned plan")
-    identity = {key: manifest[key] for key in ("acceptanceSha256", "contractSha256", "planSha256", "prdSha256")}
-    if required_ids is not None:
-        identity["browserJourneySha256"] = manifest["browserJourneySha256"]
-        identity["acceptanceManifestSha256"] = digest(canonical_json(manifest))
+    identity = acceptance_identity(manifest, required_ids)
+    original_manifest, original_acceptance_directory = manifest, acceptance_directory
     stages = FeatureStages(args.event, base, directory / "stages")
     export = shlex.join(["python", "/opt/bma/tools/workspace_io.py", "export",
                         "--bucket", stages.bucket, "--event", args.event + "-implementation", "--base", base])
@@ -273,12 +340,19 @@ def main():
     for attempt in range(args.max_corrections + 1):
         candidate = directory / f"candidate-{attempt}"
         candidate.mkdir(parents=True, exist_ok=True)
+        restored = json.loads((candidate / "result.json").read_text()) if (candidate / "result.json").exists() else None
+        selected = restored or (history[-1] if history else {"acceptanceSha256": original_manifest["acceptanceSha256"]})
+        acceptance_directory, manifest = select_bundle(
+            stages, directory, original_acceptance_directory, original_manifest,
+            selected, contract, required_ids)
+        acceptance_path = acceptance_directory / "workload.acceptance.spec.js"
+        active_identity = acceptance_identity(manifest, required_ids)
         if (candidate / "result.json").exists():
-            result = json.loads((candidate / "result.json").read_text())
+            result = restored
             patch = (candidate / "verified.patch").read_bytes()
             if (digest(patch) != result["patchSha256"] or result["acceptanceSha256"] != manifest["acceptanceSha256"]
                     or result["baseCommit"] != base
-                    or any(result.get(key) != value for key, value in identity.items())):
+                    or any(result.get(key) != value for key, value in active_identity.items())):
                 raise ValueError("Stored candidate identity changed")
             validate_check_binding(result.get("checks"), base, result["patchSha256"],
                                    manifest, required_ids)
@@ -298,57 +372,48 @@ def main():
                     "Keep changes under src/. Re-run npm test and npm run build, then export the "
                     f"cumulative patch with:\n{export}\n"
                     "Return the same implementation-summary JSON format. Feedback:\n" +
-                    json.dumps({"checks": feedback["checks"], "review": feedback["review"]}, ensure_ascii=False))
+                    json.dumps({"checks": feedback["checks"], "review": feedback["review"],
+                                "acceptanceDiagnosis": feedback.get("acceptanceDiagnosis"),
+                                "currentAcceptanceSpec": acceptance_path.read_text()}, ensure_ascii=False))
                 state, items = stages.continue_implementation(attempt, session_id, prompt,
-                    {**identity, "previousPatchSha256": feedback["patchSha256"]})
+                    {**active_identity, "previousPatchSha256": feedback["patchSha256"]})
             implementation = final_json(items, state["outcome"]["turnId"])
             patch, export_manifest = collect_patch(stages, base, args.event, items, state["outcome"]["turnId"])
             patch_sha = digest(patch)
             (candidate / "verified.patch").write_bytes(patch)
             (candidate / "implementation.json").write_text(json.dumps(implementation, indent=2))
-            checks_path = candidate / "checks.json"
-            if checks_path.exists() and args.recheck_infrastructure:
-                old_checks = json.loads(checks_path.read_text())
-                installation = next((command for command in old_checks.get("commands", [])
-                                     if command["name"] == "npm-ci"), None)
-                if not installation or installation["status"] != "passed":
-                    saved_failure = candidate / f"checks-setup-failure-{digest(checks_path.read_bytes())[:12]}.json"
-                    checks_path.replace(saved_failure)
-            if checks_path.exists():
-                checks = json.loads(checks_path.read_text())
-            else:
-                checks = check_candidate(Path.cwd(), base, patch, acceptance_path,
-                                         candidate / "checks", manifest["acceptanceSha256"],
-                                         expected_titles=[case["title"] for case in manifest["cases"]],
-                                         required_ids=required_ids)
-                checks_path.write_text(json.dumps(checks, indent=2))
-            validate_check_binding(checks, base, patch_sha, manifest, required_ids)
-            if checks.get("infrastructureFailure") is True:
-                stages.s3.put_object(Bucket=stages.bucket, Key=f"state/features/{args.event}/check-block.json",
-                    Body=json.dumps({"attempt": attempt, "patchSha256": patch_sha,
-                                     "status": "infrastructure-failed", "checks": checks}).encode(),
-                    ContentType="application/json")
-                raise RuntimeError("Check infrastructure failed. Fix the runner, then recheck this same candidate; no code correction submitted.")
             archive, tree = review_archive(Path.cwd(), base, patch)
-            review_version = digest(canonical_json(checks))[:12]
-            review_state, review_items = stages.run(f"review-{attempt}-{review_version}",
-                "You are a fresh independent reviewer. Inspect the assigned candidate source "
-                "and evidence. Do not change files or export a patch; do not read credentials "
-                "or access external systems. Return only the requested structured review. "
-                "Find real actionable defects and never manufacture feedback for a demo.",
-                reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
-                                manifest["acceptanceSha256"], acceptance),
-                archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree},
-                skill_name="bma-review",
-                legacy_prompt=reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
-                    manifest["acceptanceSha256"], acceptance, legacy=True))
-            review = validate_review(final_json(review_items, review_state["outcome"]["turnId"]),
-                                     patch_sha, manifest["acceptanceSha256"], required_ids)
+            evaluation = dict(stages=stages, candidate=candidate, attempt=attempt, base=base,
+                patch=patch, patch_sha=patch_sha, archive=archive, tree=tree,
+                prd=prd, plan=plan, contract=contract, manifest=manifest,
+                acceptance_path=acceptance_path, required_ids=required_ids,
+                recheck_infrastructure=args.recheck_infrastructure)
+            checks, review, review_state = evaluate_candidate(**evaluation)
+            diagnosis = None
+            if eligible(checks, review) and "recovery" not in manifest:
+                print("Feature tests failed while code review approved. Independently diagnosing test vs application defect.", flush=True)
+                revised, diagnosis = recover(stages, prd=prd, plan=plan, contract=contract,
+                    manifest=manifest, spec=acceptance_path.read_text(), checks=checks, review=review,
+                    candidate_archive=archive, base_archive=source_archive(base),
+                    directory=candidate / "acceptance-recovery", required_ids=required_ids,
+                    excluded_sessions=(session_id, provenance["sessionId"], review_state["sessionId"]))
+                if revised is not None:
+                    acceptance_directory = freeze_bundle(stages, directory, revised, contract)
+                    manifest = revised["manifest"]
+                    acceptance_path = acceptance_directory / "workload.acceptance.spec.js"
+                    active_identity = acceptance_identity(manifest, required_ids)
+                    print("Independent review approved a versioned test correction. Rechecking the unchanged patch against every case.", flush=True)
+                    checks, review, review_state = evaluate_candidate(**{
+                        **evaluation, "candidate": candidate / "acceptance-recheck",
+                        "manifest": manifest, "acceptance_path": acceptance_path})
+            validate_recovery(manifest, acceptance_path.read_text(), required_ids,
+                              (session_id, provenance["sessionId"], review_state["sessionId"]))
             result = {"schemaVersion": 1, "attempt": attempt, "baseCommit": base,
-                "patchSha256": patch_sha, "tree": tree, **identity,
+                "patchSha256": patch_sha, "tree": tree, **active_identity,
                 "implementationSessionId": session_id, "implementationTurnId": state["outcome"]["turnId"],
                 "reviewSessionId": review_state["sessionId"], "reviewTurnId": review_state["outcome"]["turnId"],
                 "checks": checks, "review": review, "exportManifest": export_manifest,
+                "acceptanceDiagnosis": diagnosis,
                 "passed": checks.get("passed") is True and review["verdict"] == "approve"}
             (candidate / "result.json").write_text(json.dumps(result, indent=2))
             for name in ("verified.patch", "result.json"):
@@ -369,8 +434,40 @@ def main():
         if result["passed"]:
             (directory / "verified.patch").write_bytes(patch)
             (directory / "candidate.json").write_text(json.dumps(result, indent=2))
+            if os.environ.get("GITHUB_OUTPUT"):
+                with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                    output.write(f"acceptance_path={acceptance_directory}\n")
+            if os.environ.get("GITHUB_STEP_SUMMARY"):
+                with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
+                    output.write("\n## Feature checks and independent review\n\n")
+                    output.write(f"{len(manifest['cases'])} frozen acceptance cases passed. "
+                                 f"Selected spec: `{manifest['acceptanceSha256']}`.\n\n")
+                    if manifest.get("recovery"):
+                        parent_sha = manifest["recovery"]["original"]["manifest"]["acceptanceSha256"]
+                        output.write("A separately diagnosed test-authoring defect was corrected once "
+                                     "and approved by an independent preservation reviewer. "
+                                     "Every original case was retained and rerun on the unchanged candidate. "
+                                     f"Original failed suite: `{parent_sha}`. "
+                                     "The selected manifest includes the original failure and review trail.\n\n")
             print("Feature checks and fresh review passed. Browser verification and release remain.", flush=True)
             return 0
+        diagnosis = (result.get("acceptanceDiagnosis") or {}).get("result", {})
+        stop_reason = None
+        if diagnosis.get("classification") == "uncertain":
+            stop_reason = "Independent failure diagnosis is uncertain; no application correction submitted."
+        elif eligible(result["checks"], result["review"]) and "recovery" in manifest:
+            stop_reason = "Acceptance correction did not resolve the gate; its single automatic repair is exhausted."
+        elif (not result["checks"]["passed"] and result["review"]["verdict"] == "approve"
+              and not eligible(result["checks"], result["review"])):
+            stop_reason = "Failed runner or incomplete report has no actionable application finding; inspect the gate before retrying."
+        elif attempt and unchanged_failure(history[attempt - 1], result):
+            stop_reason = "Unchanged patch produced the same failure; no further identical correction attempts submitted."
+        if stop_reason:
+            cycle.update(status="needs-human-inspection", stopReason=stop_reason)
+            summary_path.write_text(json.dumps(cycle, indent=2))
+            stages.s3.put_object(Bucket=stages.bucket, Key=f"state/features/{args.event}/cycle.json",
+                                Body=json.dumps(cycle).encode(), ContentType="application/json")
+            raise RuntimeError(stop_reason)
     cycle["status"] = "needs-human-inspection"
     summary_path.write_text(json.dumps(cycle, indent=2))
     stages.s3.put_object(Bucket=stages.bucket, Key=f"state/features/{args.event}/cycle.json",

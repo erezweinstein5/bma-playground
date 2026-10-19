@@ -320,6 +320,9 @@ def validate_bundle(context, report, bundle, plan=None):
                                 ("acceptanceIds", "browserJourney", "browserJourneySha256")),
                     "Legacy evidence cannot downgrade a generic feature")
     validate_acceptance(acceptance, required_ids=required_ids)
+    from acceptance_recovery import validate_recovery
+    validate_recovery(manifest, spec, required_ids,
+                      (metadata.get("session"), report.get("bmaSessionId")))
     for case in cases:
         tags = set(re.findall(r"\[(AC-[1-9][0-9]*)\]", case["title"]))
         require(tags == set(case["acceptanceIds"]), "Manifest title tags differ from acceptance IDs")

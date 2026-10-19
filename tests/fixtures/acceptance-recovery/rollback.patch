@@ -1,0 +1,126 @@
+diff --git a/src/main.js b/src/main.js
+index ff00518..80e0645 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -4,45 +4,6 @@ import { COLUMNS, STORAGE_KEY, completion, filterTasks, initialTasks, moveTask,
+ const board = document.querySelector('#board');
+ const search = document.querySelector('#search');
+ const announcement = document.querySelector('#announcement');
+-// Appearance is independent of board persistence and never rerenders work in progress.
+-const APPEARANCE_KEY = 'bma-playground.appearance.v1';
+-let appearance = 'light';
+-let appearanceStorageAvailable = true;
+-try {
+-  const preference = localStorage.getItem(APPEARANCE_KEY);
+-  if (preference === 'light' || preference === 'dark') appearance = preference;
+-} catch {
+-  appearanceStorageAvailable = false;
+-}
+-const appearancePanel = document.createElement('div');
+-appearancePanel.className = 'appearance';
+-appearancePanel.innerHTML = `<div id="appearance-control" class="view-switch" role="group" aria-label="Appearance">
+-  <button type="button" data-appearance-option="light" aria-pressed="false">Light</button>
+-  <button type="button" data-appearance-option="dark" aria-pressed="false">Dark</button>
+-</div><span id="appearance-status" role="status"></span>`;
+-document.querySelector('.topbar').append(appearancePanel);
+-function applyAppearance() {
+-  document.documentElement.dataset.appearance = appearance;
+-  appearancePanel.querySelectorAll('button').forEach((button) =>
+-    button.setAttribute('aria-pressed', String(button.dataset.appearanceOption === appearance)));
+-  appearancePanel.querySelector('#appearance-status').textContent =
+-    `Appearance: ${appearance === 'dark' ? 'Dark' : 'Light'}`;
+-  if (!appearanceStorageAvailable) {
+-    announcement.textContent = 'Appearance lasts for this page; device storage is unavailable.';
+-  }
+-}
+-applyAppearance();
+-appearancePanel.addEventListener('click', (event) => {
+-  const button = event.target.closest('[data-appearance-option]');
+-  if (!button) return;
+-  appearance = button.dataset.appearanceOption;
+-  try {
+-    localStorage.setItem(APPEARANCE_KEY, appearance);
+-  } catch {
+-    appearanceStorageAvailable = false;
+-  }
+-  applyAppearance();
+-});
+ let persisted;
+ try { persisted = localStorage.getItem(STORAGE_KEY); } catch { /* The board works without storage. */ }
+ let tasks = restoreTasks(persisted);
+diff --git a/src/style.css b/src/style.css
+index c4f7ac0..7af857a 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -51,59 +51,6 @@
+   --error-text: #a13d31;
+ }
+ 
+-:root[data-appearance="dark"] {
+-  color-scheme: dark;
+-  --ink: #e5edf8;
+-  --muted: #b0bfd3;
+-  --blue: #9db8ff;
+-  --mint: #83d6c6;
+-  --paper: #111b2b;
+-  --line: #38475e;
+-  --surface: #1d2a3e;
+-  --field: #1d2a3e;
+-  --control-border: #71839e;
+-  --focus: #a9c4ff;
+-  --rail: #2445a5;
+-  --ring-track: #38475e;
+-  --count: #29374c;
+-  --dot: #b0bfd3;
+-  --accent-halo: #304775;
+-  --card-border: #38475e;
+-  --card-hover: #71839e;
+-  --shadow: #00000018;
+-  --hover-shadow: #00000028;
+-  --design-text: #ddc5f6;
+-  --design-bg: #3b2d51;
+-  --engineering-text: #bbd1ff;
+-  --engineering-bg: #263c63;
+-  --product-text: #f1d29b;
+-  --product-bg: #493b26;
+-  --grip: #b0bfd3;
+-  --note-line: #71839e;
+-  --divider: #38475e;
+-  --lilac-bg: #443353;
+-  --lilac-text: #ddc5f6;
+-  --avatar-blue-bg: #2b416a;
+-  --avatar-blue-text: #bbd1ff;
+-  --priority: #edbf87;
+-  --done: #1a2b38;
+-  --selected: #304775;
+-  --selected-text: #b7ccff;
+-  --drop-border: #a9c4ff;
+-  --empty-border: #53647d;
+-  --hint: #b0bfd3;
+-  --capacity: #29374c;
+-  --over-bg: #362d24;
+-  --over-border: #ae8659;
+-  --over-text: #f1d29b;
+-  --over-stripe: #edbf87;
+-  --over-stripe-alt: #ae8659;
+-  --error-border: #ed9b90;
+-  --error-bg: #422a2b;
+-  --error-line: #ae6c63;
+-  --error-text: #ffc2b8;
+-}
+-
+ :root {
+   font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+   color: var(--ink);
+@@ -332,11 +279,4 @@ h2 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
+   .workload-controls select, .workload-controls input, .workload-controls button { min-height: 39px; font-size: 12px; }
+ }
+ 
+-/* Header controls remain visible at every width, independent of the badge. */
+-.topbar { flex-wrap: wrap; padding: 16px 0; }
+-.appearance { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+-#appearance-status { font-size: 11px; color: var(--muted); }
+ .workload-controls button:hover, #clear-filters:hover { background: var(--selected); }
+-@media (max-width: 760px) {
+-  .appearance { gap: 8px; }
+-}

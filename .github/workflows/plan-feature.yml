@@ -117,6 +117,7 @@ jobs:
               output.write("The implementer cannot edit this suite. All frozen cases must pass.\n")
           PY
       - name: Implement, test, review, and correct within the bounded cycle
+        id: cycle
         if: steps.plan.outputs.ready == 'true'
         env:
           ASSIGNMENT_PATH: ${{ steps.assignment.outputs.artifact_path }}
@@ -133,7 +134,7 @@ jobs:
           python pipeline/feature_browser.py --event "$EVENT_ID" \
             --candidate "$ASSIGNMENT_PATH/candidate.json" \
             --planning "$ASSIGNMENT_PATH/design" \
-            --acceptance "$ASSIGNMENT_PATH/acceptance"
+            --acceptance "${{ steps.cycle.outputs.acceptance_path }}"
       - name: Validate the complete publication before GitHub authentication
         id: publication
         if: steps.plan.outputs.ready == 'true'
@@ -144,7 +145,7 @@ jobs:
           python pipeline/publish_feature_pr.py --validate-only \
             --assignment "$ASSIGNMENT_PATH/assignment.json" \
             --event "$GITHUB_EVENT_PATH" --candidate "$ASSIGNMENT_PATH/candidate.json" \
-            --planning "$ASSIGNMENT_PATH/design" --acceptance "$ASSIGNMENT_PATH/acceptance" \
+            --planning "$ASSIGNMENT_PATH/design" --acceptance "${{ steps.cycle.outputs.acceptance_path }}" \
             --browser "$ASSIGNMENT_PATH/browser/result.json" \
             --result "$ASSIGNMENT_PATH/publication.json"
           echo "validated=true" >> "$GITHUB_OUTPUT"
@@ -169,7 +170,7 @@ jobs:
           python pipeline/publish_feature_pr.py --feature-check "Repair acceptance" \
             --assignment "$ASSIGNMENT_PATH/assignment.json" \
             --event "$GITHUB_EVENT_PATH" --candidate "$ASSIGNMENT_PATH/candidate.json" \
-            --planning "$ASSIGNMENT_PATH/design" --acceptance "$ASSIGNMENT_PATH/acceptance" \
+            --planning "$ASSIGNMENT_PATH/design" --acceptance "${{ steps.cycle.outputs.acceptance_path }}" \
             --browser "$ASSIGNMENT_PATH/browser/result.json" \
             --result "$ASSIGNMENT_PATH/publication.json"
       - uses: actions/upload-artifact@v4
