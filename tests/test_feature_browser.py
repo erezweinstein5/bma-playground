@@ -888,6 +888,35 @@ class SessionTests(unittest.TestCase):
         self.preview.assert_called_once()
         self.assertEqual(self.state()["outcome"]["completionSource"], "durable_items")
 
+    def test_completed_stream_waits_for_idle_and_pins_turn_before_collecting(self):
+        def settling_read(session_id):
+            self.assertEqual(session_id, "verification")
+            self.assertEqual(self.state()["status"], "settling")
+            self.assertEqual(self.state()["outcome"]["turnId"], "turn")
+            return {"status": "running" if self.client.get_session.call_count == 1 else "idle",
+                    "environment": {"runtime_arn": "runtime"}}
+        self.client.get_session.side_effect = settling_read
+        with patch("bma_client.time.sleep"):
+            result = self.run_browser()
+        self.assertTrue(result["passed"])
+        self.assertEqual(self.client.get_session.call_count, 2)
+        self.client.create.assert_called_once()
+        self.client.run_turn.assert_called_once()
+        self.preview.assert_called_once()
+
+    def test_settling_timeout_keeps_completed_turn_and_rerun_only_collects_it(self):
+        self.client.get_session.return_value = {"status": "running", "environment": {"runtime_arn": "runtime"}}
+        with patch("bma_client.time.monotonic", side_effect=[0, 46]):
+            with self.assertRaisesRegex(RuntimeError, "checkpoint is preserved"):
+                self.run_browser()
+        self.assertEqual(self.state()["status"], "settling")
+        self.assertEqual(self.state()["outcome"]["turnId"], "turn")
+        self.client.get_session.return_value = {"status": "idle", "environment": {"runtime_arn": "runtime"}}
+        self.assertTrue(self.run_browser()["passed"])
+        self.client.create.assert_called_once()
+        self.client.run_turn.assert_called_once()
+        self.preview.assert_called_once()
+
     def test_uncertain_creation_never_creates_again(self):
         self.client.create.side_effect = TimeoutError("create response lost")
         with self.assertRaises(TimeoutError):
@@ -912,7 +941,7 @@ class SessionTests(unittest.TestCase):
         ]:
             with self.subTest(session=session, item_count=len(items)):
                 self.client.get_session.return_value, self.client.items.return_value = session, items
-                with self.assertRaises(RuntimeError):
+                with patch("bma_client.time.monotonic", side_effect=[0, 46]), self.assertRaises(RuntimeError):
                     self.run_browser()
         self.client.run_turn.assert_called_once()
         self.client.create.assert_called_once()

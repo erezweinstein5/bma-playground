@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { featureAssignment } from '../../scripts/feature-assignment.mjs';
+import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { featureAssignment, restoreFeatureAssignment } from '../../scripts/feature-assignment.mjs';
 
 const base = 'a'.repeat(40);
 const event = () => ({
@@ -76,4 +81,128 @@ test('rejects malformed identity, malformed PRDs, and bounded UTF-8 input', () =
   }
   assert.throws(() => featureAssignment(event(), 'issues', '', base));
   assert.throws(() => featureAssignment(event(), 'issues', 'demo-owner', 'main'));
+});
+
+test('recovery reauthorizes the original event and preserves every field except a newer source pin', () => {
+  const input = event();
+  const original = featureAssignment(input, 'issues', 'demo-owner', base);
+  const state = { schemaVersion: 2, planSchemaVersion: 2,
+    eventId: original.eventId, prdSha256: original.prdSha256, baseCommit: base,
+    assignment: original, githubRunId: '12345' };
+  assert.deepEqual(restoreFeatureAssignment(input, 'issues', 'demo-owner', state, '12345'), original);
+  for (const mutate of [
+    e => { e.issue.body += '\nChanged requirements.'; },
+    e => { e.issue.id += 1; },
+    e => { e.issue.number += 1; },
+    e => { e.repository.full_name = 'owner/different'; },
+    e => { e.sender.login = 'outsider'; },
+    e => { e.sender.type = 'Bot'; },
+    e => { e.issue.labels = []; },
+  ]) {
+    const changed = structuredClone(input);
+    mutate(changed);
+    assert.throws(() => restoreFeatureAssignment(changed, 'issues', 'demo-owner', state, '12345'));
+  }
+  assert.throws(() => restoreFeatureAssignment(input, 'issues', 'demo-owner', state, '12346'),
+    /original GitHub run/);
+  assert.throws(() => restoreFeatureAssignment(input, 'issues', 'demo-owner',
+    { ...state, planSchemaVersion: 1 }, '12345'), /schema/);
+  assert.throws(() => restoreFeatureAssignment(input, 'issues', 'demo-owner',
+    { ...state, assignment: { ...original, unexpected: true } }, '12345'), /assignment/);
+});
+
+test('historical opened events and v1 claims remain recoverable without upgrading the assignment', () => {
+  const input = event();
+  input.action = 'opened';
+  delete input.label;
+  const original = featureAssignment(input, 'issues', 'demo-owner', base);
+  const restored = restoreFeatureAssignment(input, 'issues', 'demo-owner',
+    { schemaVersion: 1, eventId: original.eventId, prdSha256: original.prdSha256, baseCommit: base });
+  assert.deepEqual(restored, { ...original, schemaVersion: 1, kind: 'team-workload-v1' });
+});
+
+const prepareScript = fileURLToPath(new URL('../../scripts/prepare-feature.mjs', import.meta.url));
+
+async function prepareFixture(t, input, attempt = '1') {
+  const directory = await mkdtemp(join(tmpdir(), 'feature-intake-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const eventPath = join(directory, 'event.json');
+  await writeFile(eventPath, JSON.stringify(input));
+  const output = join(directory, 'output');
+  const summary = join(directory, 'summary');
+  const env = { ...process.env, GITHUB_EVENT_PATH: eventPath, GITHUB_EVENT_NAME: 'issues',
+    SOURCE_COMMIT: base, DEMO_OPERATORS: 'demo-owner', GITHUB_RUN_ATTEMPT: attempt,
+    GITHUB_RUN_ID: '12345', GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary };
+  return { directory, output, summary, env,
+    run: (...args) => spawnSync(process.execPath, [prepareScript, ...args],
+      { cwd: directory, env, encoding: 'utf8' }) };
+}
+
+test('opened plus labeled creates one assignment and unrelated labels cannot start execution', async t => {
+  const opened = event();
+  opened.action = 'opened';
+  delete opened.label;
+  const fixture = await prepareFixture(t, opened);
+  assert.equal(fixture.run().status, 0);
+  assert.equal(await readFile(fixture.output, 'utf8'), 'prepared=false\n');
+  assert.match(await readFile(fixture.summary, 'utf8'), /waiting for.*labeled event/);
+  await assert.rejects(readFile(join(fixture.directory, 'artifacts/issue-feature-123/assignment.json')));
+  await writeFile(fixture.env.GITHUB_EVENT_PATH, JSON.stringify(event()));
+  assert.equal(fixture.run().status, 0);
+  assert.match(await readFile(fixture.output, 'utf8'), /prepared=true/);
+  const unrelated = event();
+  unrelated.label.name = 'documentation';
+  const other = await prepareFixture(t, unrelated);
+  assert.equal(other.run().status, 0);
+  assert.equal(await readFile(other.output, 'utf8'), 'prepared=false\n');
+});
+
+test('old workflow prepare invocation allows explicit reruns of opened events', async t => {
+  const opened = event();
+  opened.action = 'opened';
+  delete opened.label;
+  const fixture = await prepareFixture(t, opened, '2');
+  assert.equal(fixture.run().status, 0);
+  const assignmentPath = join(fixture.directory, 'artifacts/issue-feature-123/assignment.json');
+  const prepared = JSON.parse(await readFile(assignmentPath, 'utf8'));
+  assert.deepEqual(prepared, featureAssignment(opened, 'issues', 'demo-owner', base));
+});
+
+test('restoration updates the adjacent assignment only after exact authorization and identity checks', async t => {
+  const input = event();
+  const fixture = await prepareFixture(t, input, '2');
+  const original = featureAssignment(input, 'issues', 'demo-owner', base);
+  const adjacent = join(fixture.directory, 'adjacent');
+  await mkdir(adjacent);
+  const statePath = join(adjacent, 'planning-state.json');
+  const assignmentPath = join(adjacent, 'assignment.json');
+  const state = { schemaVersion: 2, planSchemaVersion: 2, eventId: original.eventId,
+    baseCommit: base, prdSha256: original.prdSha256, assignment: original, githubRunId: '12345' };
+  await writeFile(statePath, JSON.stringify(state));
+  const prepared = { ...original, baseCommit: 'c'.repeat(40) };
+  await writeFile(assignmentPath, JSON.stringify(prepared));
+  const run = fixture.run('--restore-planning', statePath);
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(JSON.parse(await readFile(assignmentPath, 'utf8')), original);
+  assert.equal(await readFile(join(adjacent, 'prd.md'), 'utf8'), original.prd);
+  await assert.rejects(readFile(fixture.output)); // Do not replace old step outputs.
+  delete fixture.env.DEMO_OPERATORS; // The original YAML sets this only on initial preparation.
+  await writeFile(assignmentPath, JSON.stringify(prepared));
+  const legacyRun = fixture.run('--restore-planning', statePath);
+  assert.equal(legacyRun.status, 0, legacyRun.stderr);
+  assert.deepEqual(JSON.parse(await readFile(assignmentPath, 'utf8')), original);
+  fixture.env.DEMO_OPERATORS = 'demo-owner';
+  for (const changed of [
+    { ...prepared, actor: 'someone-else' }, { ...prepared, repository: 'other/repo' },
+    { ...prepared, issueNumber: 999 }, { ...prepared, extra: true },
+  ]) {
+    const raw = JSON.stringify(changed);
+    await writeFile(assignmentPath, raw);
+    const rejected = fixture.run('--restore-planning', statePath);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /authorized issue snapshot/);
+    assert.equal(await readFile(assignmentPath, 'utf8'), raw);
+  }
+  fixture.env.GITHUB_RUN_ATTEMPT = '1';
+  assert.match(fixture.run('--restore-planning', statePath).stderr, /explicit rerun/);
 });

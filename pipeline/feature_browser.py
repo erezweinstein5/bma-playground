@@ -19,7 +19,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from PIL import Image
 
-from bma_client import BmaClient
+from bma_client import BmaClient, wait_for_session_idle
 from browser_evidence import (MAX_CAPTURE, browser_tool_configuration, collect_phase,
                               encode_video, load_json, preview, unpack_capture,
                               validate_browser_calls, validate_manifest)
@@ -547,10 +547,9 @@ def reconcile(client, state):
     session_id = state.get("sessionId")
     if not session_id:
         raise RuntimeError("Preview/session creation is uncertain; inspect private state. No retry submitted")
-    current = client.get_session(session_id)
-    if (current.get("status") != "idle" or current.get("error")
-            or current.get("environment", {}).get("runtime_arn") != state["runtimeArn"]):
-        raise RuntimeError("Existing browser session is not idle on its Runtime; no retry submitted")
+    # A turn-completed SSE event can precede the session's idle transition.
+    # Wait only by reading the same session; preserve all turn/evidence checks.
+    wait_for_session_idle(client, session_id, state["runtimeArn"])
     items = client.items(session_id)
     turns = {item["turn_id"] for item in items if item.get("turn_id")}
     finals = [item for item in items if item.get("type") == "message"
@@ -779,6 +778,10 @@ def run_browser(s3, client, candidate, patch, identity, design, directory):
         print(f"BMA feature browser session: {session_id}", flush=True)
         outcome = client.run_turn(session_id, prompt, directory / "events.jsonl")
         state["outcome"] = outcome
+        # Persist the observed terminal turn before any settling read can fail.
+        # A later collection must correlate to this exact turn.
+        state["status"] = "settling"
+        etag = save_state(s3, bucket, key, state, etag)
         # Read the service's durable turn even when the stream reported success.
         _, items = reconcile(client, state)
     state.update({"outcome": outcome, "status": "completed"})
