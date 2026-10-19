@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -16,6 +17,41 @@ def final(turn="turn", value=None):
 
 
 class StageTests(unittest.TestCase):
+    def test_review_skill_is_registered_only_for_the_assigned_session(self):
+        for name in ("bma-review", None):
+            with self.subTest(skill=name), tempfile.TemporaryDirectory() as temporary:
+                stages = FeatureStages.__new__(FeatureStages)
+                stages.event, stages.base, stages.directory = "probe-skills", "a" * 40, Path(temporary)
+                stages.bucket = "bucket"
+                stages.read, stages.save, stages.s3 = Mock(return_value=None), Mock(), Mock()
+                stages.client = Mock()
+                stages.client.create.return_value = {"id": "session"}
+                stages.client.run_turn.return_value = {"turnId": "turn"}
+                stages.client.items.return_value = [final()]
+                with patch.dict(os.environ, {"BMA_MODEL": "test-model", "BMA_RUNTIME_ARN": "runtime",
+                                             "BMA_SESSION_ROLE_ARN": "role"}):
+                    state, _ = stages.run("review-1" if name else "implementation",
+                                          "Role boundary.", "Task.", skill_name=name)
+                configuration = stages.client.create.call_args.args[0]
+                if name:
+                    self.assertEqual(configuration["environment"]["capability_directories"],
+                                     ["/opt/bma/plugins/bma-review/skills"])
+                    self.assertIn("$bma-review", configuration["agent"]["instructions"])
+                    self.assertNotIn("bma-design", json.dumps(configuration))
+                else:
+                    self.assertNotIn("capability_directories", configuration["environment"])
+                    self.assertEqual(configuration["agent"]["instructions"], "Role boundary.")
+                self.assertEqual(state["identity"]["instructionsSha256"],
+                                 digest(configuration["agent"]["instructions"].encode()))
+
+    def test_unknown_skill_cannot_create_a_cloud_stage(self):
+        stages = FeatureStages.__new__(FeatureStages)
+        stages.s3, stages.client = Mock(), Mock()
+        with self.assertRaises(KeyError):
+            stages.run("review-1", "Role", "Task", skill_name="../../repo")
+        stages.s3.put_object.assert_not_called()
+        stages.client.create.assert_not_called()
+
     def test_cached_success_cannot_skip_frozen_cases_or_claim_empty_checks(self):
         from feature_checks import parse_feature_report
         from test_feature_checks import report_fixture, specs

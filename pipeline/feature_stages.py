@@ -13,6 +13,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bma_client import BmaClient
+from bma_skills import skill_configuration
 from feature_contract import LEGACY_AC_IDS, validate_acceptance_ids
 
 
@@ -92,8 +93,11 @@ class FeatureStages:
             if self.read(key, limit=len(data)) != data:
                 raise ValueError("Immutable stage artifact already exists with different bytes") from error
 
-    def run(self, stage, instructions, prompt, *, archive=None, extra_identity=None):
+    def run(self, stage, instructions, prompt, *, archive=None, extra_identity=None, skill_name=None):
         """A repeated stage can collect its one turn, but never resubmits input."""
+        skill = skill_configuration(skill_name) if skill_name else None
+        if skill:
+            instructions = skill["instructions"] + instructions
         key = self._key(stage)
         folder = self.directory / stage
         folder.mkdir(parents=True, exist_ok=True)
@@ -149,7 +153,8 @@ class FeatureStages:
                 "agent": {"model": os.environ["BMA_MODEL"], "instructions": instructions},
                 "environment": {"type": "aws_bedrock_agentcore",
                     "runtime_arn": os.environ["BMA_RUNTIME_ARN"], "runtime_qualifier": "DEFAULT",
-                    "workspace_directory": "/mnt/home/workspace"},
+                    "workspace_directory": "/mnt/home/workspace",
+                    **({"capability_directories": skill["capability_directories"]} if skill else {})},
                 "role_arn": os.environ["BMA_SESSION_ROLE_ARN"],
             })
             session_id = session["id"]

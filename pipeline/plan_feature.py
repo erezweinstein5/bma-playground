@@ -20,6 +20,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bma_client import BmaClient
+from bma_skills import skill_configuration
 from design_board import final_plan, save_board
 from feature_contract import validate_prd_requirements
 
@@ -70,8 +71,7 @@ def make_prompt(event, base, bucket, source_digest, prd, prd_digest):
         "If it fails, stop and report the failure. Inspect AGENTS.md and the actual "
         f"src/ files in /mnt/home/workspace/jobs/{event}/repo. Do not implement the feature, "
         "change source, install dependencies, run browser tools, or export a patch. "
-        "Read the current application structure, styles, persisted data, and tests, then produce "
-        "an implementation plan and visual design proposal grounded in them.\n"
+        "Apply the bma-design skill to produce the implementation plan and visual proposal.\n"
         "Return ONLY one JSON object matching this structure:\n" + json.dumps(SCHEMA) +
         "\nEmit schemaVersion 2. The example shows field shapes, not required business rules, "
         "criterion counts, selectors, or screen kinds. Derive 1-50 concrete, independently "
@@ -93,9 +93,7 @@ def make_prompt(event, base, bucket, source_digest, prd, prd_digest):
         "Each kind must be unique and match [a-z][a-z0-9-]{0,47}. Width must be 320-1440 "
         "and height 400-1100; use compact dimensions for a mobile state when relevant. "
         "Each frame must fit its declared dimensions without scrolling. "
-        "Every frame must contain self-contained HTML and CSS showing the proposed product, "
-        "not placeholder prose. Match the existing application's visual language and "
-        "use source-grounded fixture data appropriate to this PRD. Annotate tasks and "
+        "Every frame must contain self-contained HTML and CSS showing the proposed product. Annotate tasks and "
         "frames with IDs from requirements; do not use unrelated criterion IDs. "
         "No scripts, event handlers, external assets, fonts, links, imports, or network "
         "requests. The pipeline displays these static designs in sandboxed iframes. "
@@ -264,15 +262,18 @@ def main():
                       ContentType="application/x-tar", IfNoneMatch="*")
         state["status"] = "creating_session"
         write_checkpoint(checkpoint, state)
+        skill = skill_configuration("bma-design")
         session = client.create({
             "agent": {"model": os.environ["BMA_MODEL"], "instructions":
+                skill["instructions"] +
                 "You are the planning and product-design stage of a bounded feature delivery. "
                 "Inspect only assigned repository files. Produce a truthful plan and static "
                 "screen proposals as JSON. Do not implement source changes, modify tests, "
                 "read credentials, access GitHub, or change infrastructure."},
             "environment": {"type": "aws_bedrock_agentcore",
                 "runtime_arn": os.environ["BMA_RUNTIME_ARN"], "runtime_qualifier": "DEFAULT",
-                "workspace_directory": "/mnt/home/workspace"},
+                "workspace_directory": "/mnt/home/workspace",
+                "capability_directories": skill["capability_directories"]},
             "role_arn": os.environ["BMA_SESSION_ROLE_ARN"],
         })
         session_id = session["id"]

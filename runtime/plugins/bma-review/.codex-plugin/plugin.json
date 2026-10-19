@@ -1,0 +1,6 @@
+{
+  "name": "bma-review",
+  "version": "1.0.0",
+  "description": "Independent candidate review for BMA feature delivery.",
+  "skills": "./skills/"
+}

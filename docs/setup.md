@@ -12,7 +12,7 @@ Hosting: https://dvf0au2tge8qd.cloudfront.net
 | `AWS_ACCOUNT_ID`, `AWS_REGION` | Expected AWS target |
 | `AWS_REPAIR_ROLE_ARN` | OIDC role for session/source/patch operations |
 | `AWS_DEPLOY_ROLE_ARN` | OIDC role for website publishing |
-| `BMA_MODEL` | `openai.gpt-5.6-luna` |
+| `BMA_MODEL` | `openai.gpt-6.1-sol` (shared by the BMA stages) |
 | `BMA_RUNTIME_ARN`, `BMA_SESSION_ROLE_ARN` | Execution environment and BMA role |
 | `BMA_ARTIFACT_BUCKET` | Private source, patch, and durable state bucket |
 | `BMA_BROWSER_ID` | Custom AgentCore Browser with native recording enabled |
@@ -57,6 +57,25 @@ reset; this intentionally bypasses the repair acceptance contract and must not
 be disguised as a successful repair. Do not roll back the integration files.
 
 ## Infrastructure
+
+### Image-packaged skills
+
+`runtime/plugins/bma-design` and `runtime/plugins/bma-review` contain versioned
+Codex plugins and their `SKILL.md` instructions. The Dockerfile copies them to
+`/opt/bma/plugins/`. Planning sessions discover
+`/opt/bma/plugins/bma-design/skills`; independent review sessions discover
+`/opt/bma/plugins/bma-review/skills`. Both roles explicitly read and use their
+assigned skill. Acceptance, implementation, and browser sessions keep their
+existing instructions/tools and do not register either skill directory.
+
+The skills contain reusable role guidance. PRDs, concrete output schemas,
+source/hash identities, permissions and deterministic gates remain controller
+inputs. Browser capabilities remain an MCP tool configuration.
+
+Rebuild and deploy the Runtime image before activating controller changes that
+require a new skill. New sessions use the deployed image; existing sessions
+are not retroactively updated. These packaged files do not depend on session
+storage or skills installed on the presenter's laptop.
 
 `infra/generate_foundation.py` generates `infra/foundation.json`: hosting,
 artifact storage, IAM/OIDC, encrypted logs, and the native ARM64 CodeBuild project.
