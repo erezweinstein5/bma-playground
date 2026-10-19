@@ -188,7 +188,13 @@ class OfflinePlannerRunTests(unittest.TestCase):
         self.client.get_session.return_value = {"status": "idle"}
         self.aws = Mock()
         self.aws.client.return_value = self.s3
-        self.env = patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "1"})
+        # Each fixture supplies its own event/run identity. In Actions, inherited
+        # GITHUB_EVENT_PATH and GITHUB_RUN_ID would otherwise turn an offline
+        # probe into recovery of the CI run itself.
+        fixture_env = {key: value for key, value in os.environ.items()
+                       if not key.startswith("GITHUB_")}
+        self.env = patch.dict(os.environ, {**fixture_env, "GITHUB_RUN_ATTEMPT": "1"},
+                              clear=True)
         self.env.start()
         self.addCleanup(self.env.stop)
 
