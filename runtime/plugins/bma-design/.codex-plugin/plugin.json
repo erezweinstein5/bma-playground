@@ -1,0 +1,6 @@
+{
+  "name": "bma-design",
+  "version": "1.0.0",
+  "description": "PRD-grounded visual planning for BMA feature delivery.",
+  "skills": "./skills/"
+}

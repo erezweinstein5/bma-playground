@@ -13,6 +13,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bma_client import BmaClient
+from bma_skills import skill_configuration
 from feature_contract import LEGACY_AC_IDS, validate_acceptance_ids
 
 
@@ -92,8 +93,13 @@ class FeatureStages:
             if self.read(key, limit=len(data)) != data:
                 raise ValueError("Immutable stage artifact already exists with different bytes") from error
 
-    def run(self, stage, instructions, prompt, *, archive=None, extra_identity=None):
+    def run(self, stage, instructions, prompt, *, archive=None, extra_identity=None, skill_name=None,
+            legacy_prompt=None):
         """A repeated stage can collect its one turn, but never resubmits input."""
+        original_instructions = instructions
+        skill = skill_configuration(skill_name) if skill_name else None
+        if skill:
+            instructions = skill["instructions"] + instructions
         key = self._key(stage)
         folder = self.directory / stage
         folder.mkdir(parents=True, exist_ok=True)
@@ -105,17 +111,26 @@ class FeatureStages:
             prepare = shlex.join(["python", "/opt/bma/tools/workspace_io.py", "prepare",
                 "--bucket", self.bucket, "--event", stage_event, "--base", self.base,
                 "--sha256", source_digest])
-            prompt = (f"First run exactly:\n{prepare}\n"
-                      f"Then work in /mnt/home/workspace/jobs/{stage_event}/repo. "
-                      "If preparation fails, stop and report it. Do not modify the helper.\n" + prompt)
+            preparation = (f"First run exactly:\n{prepare}\n"
+                           f"Then work in /mnt/home/workspace/jobs/{stage_event}/repo. "
+                           "If preparation fails, stop and report it. Do not modify the helper.\n")
+            prompt = preparation + prompt
+            if legacy_prompt is not None:
+                legacy_prompt = preparation + legacy_prompt
         identity = {"baseCommit": self.base, "promptSha256": digest(prompt.encode()),
                     "instructionsSha256": digest(instructions.encode()),
-                    "sourceArchiveSha256": source_digest, **(extra_identity or {})}
+                    "sourceArchiveSha256": source_digest, **(extra_identity or {}),
+                    **({"skillName": skill_name} if skill else {})}
         prior = self.read(key, optional=True)
         if prior:
             state = json.loads(prior)
             if state["identity"] != identity:
-                raise ValueError("Stage already exists with different inputs; inspect it before another run")
+                legacy_identity = {**identity,
+                    "instructionsSha256": digest(original_instructions.encode()),
+                    "promptSha256": digest(legacy_prompt.encode()) if legacy_prompt is not None else None}
+                legacy_identity.pop("skillName", None)
+                if not (skill and legacy_prompt is not None and state["identity"] == legacy_identity):
+                    raise ValueError("Stage already exists with different inputs; inspect it before another run")
             if not state.get("sessionId"):
                 raise RuntimeError("Session creation is uncertain; inspect the service before proceeding")
             session_id = state["sessionId"]
@@ -149,7 +164,8 @@ class FeatureStages:
                 "agent": {"model": os.environ["BMA_MODEL"], "instructions": instructions},
                 "environment": {"type": "aws_bedrock_agentcore",
                     "runtime_arn": os.environ["BMA_RUNTIME_ARN"], "runtime_qualifier": "DEFAULT",
-                    "workspace_directory": "/mnt/home/workspace"},
+                    "workspace_directory": "/mnt/home/workspace",
+                    **({"capability_directories": skill["capability_directories"]} if skill else {})},
                 "role_arn": os.environ["BMA_SESSION_ROLE_ARN"],
             })
             session_id = session["id"]

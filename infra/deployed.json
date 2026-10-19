@@ -15,8 +15,8 @@
   "BuildProject": "bma-playground-runtime",
   "RuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:135808937215:runtime/bma_playground_codex-TRcPbn7JNG",
   "RuntimeId": "bma_playground_codex-TRcPbn7JNG",
-  "RuntimeVersion": "4",
-  "RuntimeImageUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime@sha256:a84ca2a0509424422427fdd6400e0dfc4ebc0a7c4cb714372686b167760c3194",
+  "RuntimeVersion": "6",
+  "RuntimeImageUri": "135808937215.dkr.ecr.us-east-1.amazonaws.com/bma-playground-runtime@sha256:6b411421bd90d6b0713b4e2051b39c3bf41e5b8fbc97d936c7d2e64f9990050d",
   "EvidenceBucket": "bma-playground-evidencebucket-ksmku4welaeg",
   "BrowserId": "bma_playground_browser-5PiWuaeYxw",
   "BrowserArn": "arn:aws:bedrock-agentcore:us-east-1:135808937215:browser-custom/bma_playground_browser-5PiWuaeYxw"

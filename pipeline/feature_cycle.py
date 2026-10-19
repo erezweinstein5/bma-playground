@@ -51,12 +51,8 @@ def implementation_prompt(prd, plan, contract, acceptance, export):
     )
 
 
-def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sha, acceptance):
-    return (
-        "Independently review this exact candidate. The supplied source archive already "
-        "contains the candidate application changes; its baseline identity is in the "
-        "preparation metadata. Inspect source with file/line references. Read-only task: "
-        "do not edit or export code, run network calls, read credentials, or access GitHub. "
+# Exact pre-skill guidance is retained only to recognize already-submitted reviews.
+LEGACY_REVIEW_GUIDANCE = (
         "Review the PRD, design, applicable data migration, accessible validation/focus, "
         "regressions and the independent acceptance spec/results. Passing tests alone are "
         "not approval. The candidate intentionally contains src/ only. Its acceptance "
@@ -73,6 +69,19 @@ def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sh
         "Identify real defects or missing criteria; never invent a finding "
         "to create a demo correction. End by checking git status --porcelain to confirm "
         "you left the snapshot unchanged.\n"
+)
+
+
+def reviewer_prompt(prd, plan, contract, patch, checks, patch_sha, acceptance_sha, acceptance,
+                    *, legacy=False):
+    return (
+        "Independently review this exact candidate. The supplied source archive already "
+        "contains the candidate application changes; its baseline identity is in the "
+        "preparation metadata. Inspect source with file/line references. Read-only task: "
+        "do not edit or export code, run network calls, read credentials, or access GitHub. "
+        + (LEGACY_REVIEW_GUIDANCE if legacy else
+           "Apply the bma-review skill. The candidate intentionally contains src/ only; "
+           "the controller supplies its separately frozen acceptance bundle and results below.\n") +
         "Return ONLY JSON: schemaVersion=1, verdict='approve' or 'request_changes', "
         f"patchSha256={patch_sha!r}, acceptanceSha256={acceptance_sha!r}, "
         "summary (string), and findings (array of {severity:'blocker'|'major'|'minor', "
@@ -329,7 +338,10 @@ def main():
                 "Find real actionable defects and never manufacture feedback for a demo.",
                 reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
                                 manifest["acceptanceSha256"], acceptance),
-                archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree})
+                archive=archive, extra_identity={**identity, "patchSha256": patch_sha, "tree": tree},
+                skill_name="bma-review",
+                legacy_prompt=reviewer_prompt(prd, plan, contract, patch, checks, patch_sha,
+                    manifest["acceptanceSha256"], acceptance, legacy=True))
             review = validate_review(final_json(review_items, review_state["outcome"]["turnId"]),
                                      patch_sha, manifest["acceptanceSha256"], required_ids)
             result = {"schemaVersion": 1, "attempt": attempt, "baseCommit": base,

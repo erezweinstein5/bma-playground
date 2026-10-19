@@ -222,6 +222,11 @@ class OfflinePlannerRunTests(unittest.TestCase):
         self.assertEqual(claim["planSchemaVersion"], 2)
         self.assertEqual(self.s3.put_object.call_args_list[0].kwargs["IfNoneMatch"], "*")
         self.client.create.assert_called_once()
+        configuration = self.client.create.call_args.args[0]
+        self.assertEqual(configuration["environment"]["capability_directories"],
+                         ["/opt/bma/plugins/bma-design/skills"])
+        self.assertIn("$bma-design", configuration["agent"]["instructions"])
+        self.assertNotIn("bma-review", json.dumps(configuration))
         self.client.run_turn.assert_called_once()
 
     def test_blocked_scope_saves_questions_with_empty_contract_and_journey(self):
