@@ -4,45 +4,6 @@ import { COLUMNS, STORAGE_KEY, completion, filterTasks, initialTasks, moveTask, 
 const board = document.querySelector('#board');
 const search = document.querySelector('#search');
 const announcement = document.querySelector('#announcement');
-// Appearance is independent of board persistence and never rerenders work in progress.
-const APPEARANCE_KEY = 'bma-playground.appearance.v1';
-let appearance = 'light';
-let appearanceStorageAvailable = true;
-try {
-  const preference = localStorage.getItem(APPEARANCE_KEY);
-  if (preference === 'light' || preference === 'dark') appearance = preference;
-} catch {
-  appearanceStorageAvailable = false;
-}
-const appearancePanel = document.createElement('div');
-appearancePanel.className = 'appearance';
-appearancePanel.innerHTML = `<div id="appearance-control" class="view-switch" role="group" aria-label="Appearance">
-  <button type="button" data-appearance-option="light" aria-pressed="false">Light</button>
-  <button type="button" data-appearance-option="dark" aria-pressed="false">Dark</button>
-</div><span id="appearance-status" role="status"></span>`;
-document.querySelector('.topbar').append(appearancePanel);
-function applyAppearance() {
-  document.documentElement.dataset.appearance = appearance;
-  appearancePanel.querySelectorAll('button').forEach((button) =>
-    button.setAttribute('aria-pressed', String(button.dataset.appearanceOption === appearance)));
-  appearancePanel.querySelector('#appearance-status').textContent =
-    `Appearance: ${appearance === 'dark' ? 'Dark' : 'Light'}`;
-  if (!appearanceStorageAvailable) {
-    announcement.textContent = 'Appearance lasts for this page; device storage is unavailable.';
-  }
-}
-applyAppearance();
-appearancePanel.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-appearance-option]');
-  if (!button) return;
-  appearance = button.dataset.appearanceOption;
-  try {
-    localStorage.setItem(APPEARANCE_KEY, appearance);
-  } catch {
-    appearanceStorageAvailable = false;
-  }
-  applyAppearance();
-});
 let persisted;
 try { persisted = localStorage.getItem(STORAGE_KEY); } catch { /* The board works without storage. */ }
 let tasks = restoreTasks(persisted);
