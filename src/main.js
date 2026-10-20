@@ -4,6 +4,47 @@ import { COLUMNS, STORAGE_KEY, completion, filterTasks, initialTasks, moveTask, 
 const board = document.querySelector('#board');
 const search = document.querySelector('#search');
 const announcement = document.querySelector('#announcement');
+const APPEARANCE_KEY = 'bma-playground.appearance.v1';
+let selectedAppearance = 'light';
+try {
+  const preference = localStorage.getItem(APPEARANCE_KEY);
+  if (preference === 'light' || preference === 'dark') selectedAppearance = preference;
+} catch { /* A missing or unavailable preference defaults to Light. */ }
+
+const headerRight = document.createElement('div');
+headerRight.className = 'header-right';
+const appearanceControl = document.createElement('div');
+appearanceControl.id = 'appearance-control';
+appearanceControl.className = 'view-switch';
+appearanceControl.setAttribute('role', 'group');
+appearanceControl.setAttribute('aria-label', 'Appearance');
+appearanceControl.innerHTML = '<button type="button" data-appearance-choice="light">Light</button><button type="button" data-appearance-choice="dark">Dark</button>';
+const appearanceStatus = document.createElement('span');
+appearanceStatus.id = 'appearance-status';
+appearanceStatus.setAttribute('role', 'status');
+appearanceStatus.setAttribute('aria-live', 'polite');
+const workspaceBadge = document.querySelector('.workspace-badge');
+workspaceBadge.before(headerRight);
+headerRight.append(workspaceBadge, appearanceControl, appearanceStatus);
+
+function applyAppearance(saved = true) {
+  document.documentElement.dataset.appearance = selectedAppearance;
+  appearanceControl.querySelectorAll('button').forEach((button) =>
+    button.setAttribute('aria-pressed', String(button.dataset.appearanceChoice === selectedAppearance)));
+  appearanceStatus.textContent = `${selectedAppearance === 'dark' ? 'Dark' : 'Light'} appearance${saved ? '' : ' · Not saved on this device'}`;
+}
+appearanceControl.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-appearance-choice]');
+  if (!button) return;
+  selectedAppearance = button.dataset.appearanceChoice;
+  let saved = true;
+  try { localStorage.setItem(APPEARANCE_KEY, selectedAppearance); }
+  catch { saved = false; }
+  // Update only appearance: task nodes, drafts, filters and focus stay intact.
+  applyAppearance(saved);
+});
+applyAppearance();
+
 let persisted;
 try { persisted = localStorage.getItem(STORAGE_KEY); } catch { /* The board works without storage. */ }
 let tasks = restoreTasks(persisted);
