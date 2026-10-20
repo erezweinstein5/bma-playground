@@ -73,6 +73,40 @@ Existing schema 1 Workload evidence remains supported without being rewritten.
 The historical `workload.acceptance.spec.js` filename is retained as a transport
 path; validated schema and frozen metadata select the business contract.
 
+## Generated test defects
+
+When only the feature suite fails and code review approves the candidate, a
+fresh BMA session diagnoses whether the failure belongs to the application,
+the generated test, or needs inspection. A timeout alone is not permission to
+change a test. Runner failures and incomplete reports require inspection.
+
+A demonstrated test defect has one automatic recovery opportunity. A separate
+acceptance author proposes bounded source replacements; another fresh reviewer
+must approve preservation of every original case and requirement. The
+implementer does not author or approve this correction. Case declarations,
+the PRD, UI contract and browser journey remain unchanged.
+
+The controller freezes a new acceptance version, retaining the original spec,
+failed checks, diagnosis, proposed edits and preservation review in its
+manifest. It reruns the complete suite and existing regression checks on the
+unchanged application patch, then obtains a fresh code review. If those checks
+expose a real application defect, ordinary code correction can continue against
+the selected suite. A second test repair, rejected review, or uncertain
+diagnosis stops delivery. Repeated identical application patches with the same
+failure stop after the first unchanged correction.
+
+Browser verification, publication, PR CI and live deployment all validate the
+selected acceptance version and its recovery provenance. A recovered run's
+summary and PR disclose the test correction. Failed checks remain mandatory:
+recovery does not turn an unresolved failure green.
+
+The Linux CI regression replays issue #25 against its pinned historical source:
+the original suite must reproduce the focus failure, the independently corrected
+suite must pass all 15 cases, and that corrected suite must reject an application
+which still has the appearance feature. The original End-key select tests depend
+on Linux native-control behavior; local macOS runs are not substitutes for this
+CI evidence.
+
 ## Interrupted runs and planning questions
 
 The workflow starts on the `agent-feature` label event, including when the label

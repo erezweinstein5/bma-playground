@@ -275,6 +275,10 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
     review = validate_review(candidate.get("review", {}), actual["patchSha256"],
                              actual["acceptanceSha256"], required_ids=required_ids)
     require(review["verdict"] == "approve", "Fresh review did not approve this candidate")
+    from acceptance_recovery import validate_recovery
+    validate_recovery(manifest, read_file(acceptance / "workload.acceptance.spec.js", 512 * 1024).decode(),
+                      required_ids, (provenance.get("sessionId"), candidate.get("implementationSessionId"),
+                                     candidate.get("reviewSessionId"), browser.get("sessionId")))
     stages = {
         "planning": {"session": provenance.get("sessionId"), "turn": provenance.get("turnId")},
         "acceptance": {"session": manifest.get("sessionId"), "turn": manifest.get("turnId")},
@@ -370,7 +374,8 @@ def validate_inputs(*, assignment_path, event_path, candidate_path, planning,
                           "browserReportSha256")})
     return {"identity": identity, "metadata": metadata, "stages": stages, "patch": patch,
             "tree": candidate["tree"], "design": design, "evidence": evidence,
-            "issue": event["issue"], "caseCount": candidate["checks"]["executedFeatureCases"]}
+            "issue": event["issue"], "caseCount": candidate["checks"]["executedFeatureCases"],
+            "acceptanceRecovery": manifest.get("recovery")}
 
 
 def marker(context):
@@ -390,6 +395,11 @@ def body(context, head):
     hashes = "\n".join(f"- {name}: `{identity[name]}`." for name in HASH_FIELDS)
     keyboard = ("" if identity["featureKind"] == GENERIC_KIND else
                 " Keyboard coverage comes from acceptance checks, not the recording.")
+    recovery = (
+        "A generated test defect was independently diagnosed and corrected. A separate "
+        "preservation review approved the change; every original case was retained and "
+        "rerun. The linked verification evidence contains the original failed suite, "
+        "correction and review trail.\n\n" if context.get("acceptanceRecovery") else "")
     return (
         f'Refs #{identity["issueNumber"]}.\n\n'
         "BMA planned and implemented this feature from the authorized PRD. "
@@ -398,6 +408,7 @@ def body(context, head):
         f'{context["caseCount"]} frozen feature cases, existing board/repair checks, unit tests, '
         "and build passed for this patch. A fresh BMA review approved it. A separate BMA "
         f"session verified the recorded browser interactions.{keyboard}\n\n"
+        + recovery +
         f'[Visual design proposal]({context["design"]["url"]}) · '
         f'[Watch browser verification (MP4)]({context["evidence"]["watchUrl"]})\n\n'
         f'[Verification report]({context["evidence"]["reportUrl"]})\n\n'

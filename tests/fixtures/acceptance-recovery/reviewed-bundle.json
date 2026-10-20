@@ -1,0 +1,1186 @@
+{
+  "manifest": {
+    "schemaVersion": 2,
+    "eventId": "issue-feature-5922933166",
+    "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+    "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+    "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+    "contractSha256": "a8e43ebf5cc4b5d373e6fe5b32bb73c8888546a5d7e43ea2a8a7a579ed61b268",
+    "acceptanceSha256": "a33fc975d7d613d3154a23535a8c72a7dcbbd4b4551f3be43d659f5151aead32",
+    "sessionId": "sess_aeawsylejaunm2rbazuhtamrs5lt3wdywqcbe",
+    "turnId": "turn_mm3sewi7s5dj74vcjtod",
+    "cases": [
+      {
+        "title": "[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal",
+        "acceptanceIds": [
+          "AC-1"
+        ],
+        "purpose": "Verify actual removal, including hidden controls, replacement Light/Dark buttons, status text and keyboard exposure."
+      },
+      {
+        "title": "[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings",
+        "acceptanceIds": [
+          "AC-2"
+        ],
+        "purpose": "Assert computed light presentation, native field styling, keyboard focus and the existing cream overload warning independently of OS preference."
+      },
+      {
+        "title": "[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility",
+        "acceptanceIds": [
+          "AC-2"
+        ],
+        "purpose": "Preserve accessible view switching, pressed states, focus outlines and mutually exclusive visible views."
+      },
+      {
+        "title": "[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload",
+        "acceptanceIds": [
+          "AC-2",
+          "AC-3"
+        ],
+        "purpose": "Verify obsolete Dark cannot affect either view or migrate customized task fields and persisted teammate focus."
+      },
+      {
+        "title": "[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Check six-task baseline, completion, workload context, invariant totals and focus persistence."
+      },
+      {
+        "title": "[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Exercise keyboard status editing, live announcement, completion recalculation and zero contribution from Done."
+      },
+      {
+        "title": "[AC-4] Dragging welcome independently to Done updates completion capacity and persistence",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Independently exercise actual drag-and-drop and its task, progress, announcement and persistence effects."
+      },
+      {
+        "title": "[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Preserve focus restoration, keyboard owner reassignment, both effort commit controls, announcements and persisted edits."
+      },
+      {
+        "title": "[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Reject empty, out-of-range, fractional and nonnumeric effort with existing accessible errors and unchanged saved values."
+      },
+      {
+        "title": "[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Check required welcome/Maya match, Erez empty state, clearing, completion invariance and restored All focus."
+      },
+      {
+        "title": "[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Verify slash and Escape, normalized search, preserved teammate filtering and workload totals independent of filters."
+      },
+      {
+        "title": "[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Verify reset restores the persisted fixture and clears editing and filtering state with the exact live announcement."
+      },
+      {
+        "title": "[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Exercise malformed and structurally corrupt storage and invalid focus through observable startup and reload behavior."
+      },
+      {
+        "title": "[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy",
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "purpose": "Verify field-level normalization, missing effort defaults, trusted display content and persistence of valid fields."
+      },
+      {
+        "title": "[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback",
+        "acceptanceIds": [
+          "AC-2",
+          "AC-3",
+          "AC-4"
+        ],
+        "purpose": "Exercise throwing storage access, light presentation, usable in-memory interactions, existing board fallback and absence of appearance announcements."
+      }
+    ],
+    "status": "authored-not-executed",
+    "acceptanceIds": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4"
+    ],
+    "browserJourney": [
+      {
+        "acceptanceIds": [
+          "AC-3",
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify the initial Board fixture with a previously saved Dark preference.",
+        "expected": "6 tasks shown \u00b7 All teammates",
+        "selector": "#filter-status"
+      },
+      {
+        "acceptanceIds": [
+          "AC-1",
+          "AC-2",
+          "AC-4"
+        ],
+        "action": "click",
+        "description": "Open Workload using the retained view switch.",
+        "selector": "[data-view=\"workload\"]"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify Workload excludes completed tasks from its visible active count.",
+        "expected": "4 active tasks shown \u00b7 All teammates",
+        "selector": "#filter-status"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify the unchanged default Maya workload.",
+        "expected": "12 / 8 points",
+        "selector": "[data-workload-owner=\"Maya\"] [data-workload-load]"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "click",
+        "description": "Focus on Maya's active tasks.",
+        "selector": "[data-teammate=\"Maya\"]"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify the focused Workload state shown in the proposal.",
+        "expected": "2 active tasks shown \u00b7 Maya",
+        "selector": "#filter-status"
+      },
+      {
+        "acceptanceIds": [
+          "AC-3",
+          "AC-4"
+        ],
+        "action": "reload",
+        "description": "Reload with the obsolete Dark preference still present and Maya focus saved."
+      },
+      {
+        "acceptanceIds": [
+          "AC-3",
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify reload restores Board and preserves teammate focus.",
+        "expected": "3 tasks shown \u00b7 Maya",
+        "selector": "#filter-status"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "fill",
+        "description": "Search within Maya's tasks using the unchanged search field.",
+        "selector": "#search",
+        "value": "welcome"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify search combines with teammate focus.",
+        "expected": "1 task shown \u00b7 Maya",
+        "selector": "#filter-status"
+      },
+      {
+        "acceptanceIds": [
+          "AC-4"
+        ],
+        "action": "assert_text",
+        "description": "Verify the original task remains visible after filtering.",
+        "expected": "Polish the welcome screen",
+        "selector": "[data-task-id=\"welcome\"] h3"
+      }
+    ],
+    "browserJourneySha256": "6bcb789c425577a28cea3b91cdeae8758051b2662a6c00460a843a83c9cfe211",
+    "recovery": {
+      "schemaVersion": 1,
+      "identity": {
+        "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+        "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+        "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+        "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+        "acceptanceManifestSha256": "c9fbfc6e742e4f62454d560aaa05f23d69bd87caeb7b05f73b366d403cf25a72",
+        "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+        "checksSha256": "13fbeba99b579767341e430390d5e648e27d707e5de01460353116193a942b03"
+      },
+      "original": {
+        "manifest": {
+          "schemaVersion": 2,
+          "eventId": "issue-feature-5922933166",
+          "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+          "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+          "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+          "contractSha256": "a8e43ebf5cc4b5d373e6fe5b32bb73c8888546a5d7e43ea2a8a7a579ed61b268",
+          "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+          "sessionId": "sess_aeawsylekp7nk2qrbv2szg2h6xmwcsccppqlw",
+          "turnId": "turn_rkueirkwbuzldssisgd5",
+          "cases": [
+            {
+              "title": "[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal",
+              "acceptanceIds": [
+                "AC-1"
+              ],
+              "purpose": "Verify actual removal, including hidden controls, replacement Light/Dark buttons, status text and keyboard exposure."
+            },
+            {
+              "title": "[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings",
+              "acceptanceIds": [
+                "AC-2"
+              ],
+              "purpose": "Assert computed light presentation, native field styling, keyboard focus and the existing cream overload warning independently of OS preference."
+            },
+            {
+              "title": "[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility",
+              "acceptanceIds": [
+                "AC-2"
+              ],
+              "purpose": "Preserve accessible view switching, pressed states, focus outlines and mutually exclusive visible views."
+            },
+            {
+              "title": "[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload",
+              "acceptanceIds": [
+                "AC-2",
+                "AC-3"
+              ],
+              "purpose": "Verify obsolete Dark cannot affect either view or migrate customized task fields and persisted teammate focus."
+            },
+            {
+              "title": "[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Check six-task baseline, completion, workload context, invariant totals and focus persistence."
+            },
+            {
+              "title": "[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Exercise keyboard status editing, live announcement, completion recalculation and zero contribution from Done."
+            },
+            {
+              "title": "[AC-4] Dragging welcome independently to Done updates completion capacity and persistence",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Independently exercise actual drag-and-drop and its task, progress, announcement and persistence effects."
+            },
+            {
+              "title": "[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Preserve focus restoration, keyboard owner reassignment, both effort commit controls, announcements and persisted edits."
+            },
+            {
+              "title": "[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Reject empty, out-of-range, fractional and nonnumeric effort with existing accessible errors and unchanged saved values."
+            },
+            {
+              "title": "[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Check required welcome/Maya match, Erez empty state, clearing, completion invariance and restored All focus."
+            },
+            {
+              "title": "[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Verify slash and Escape, normalized search, preserved teammate filtering and workload totals independent of filters."
+            },
+            {
+              "title": "[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Verify reset restores the persisted fixture and clears editing and filtering state with the exact live announcement."
+            },
+            {
+              "title": "[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Exercise malformed and structurally corrupt storage and invalid focus through observable startup and reload behavior."
+            },
+            {
+              "title": "[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy",
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "purpose": "Verify field-level normalization, missing effort defaults, trusted display content and persistence of valid fields."
+            },
+            {
+              "title": "[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback",
+              "acceptanceIds": [
+                "AC-2",
+                "AC-3",
+                "AC-4"
+              ],
+              "purpose": "Exercise throwing storage access, light presentation, usable in-memory interactions, existing board fallback and absence of appearance announcements."
+            }
+          ],
+          "status": "authored-not-executed",
+          "acceptanceIds": [
+            "AC-1",
+            "AC-2",
+            "AC-3",
+            "AC-4"
+          ],
+          "browserJourney": [
+            {
+              "acceptanceIds": [
+                "AC-3",
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify the initial Board fixture with a previously saved Dark preference.",
+              "expected": "6 tasks shown \u00b7 All teammates",
+              "selector": "#filter-status"
+            },
+            {
+              "acceptanceIds": [
+                "AC-1",
+                "AC-2",
+                "AC-4"
+              ],
+              "action": "click",
+              "description": "Open Workload using the retained view switch.",
+              "selector": "[data-view=\"workload\"]"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify Workload excludes completed tasks from its visible active count.",
+              "expected": "4 active tasks shown \u00b7 All teammates",
+              "selector": "#filter-status"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify the unchanged default Maya workload.",
+              "expected": "12 / 8 points",
+              "selector": "[data-workload-owner=\"Maya\"] [data-workload-load]"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "click",
+              "description": "Focus on Maya's active tasks.",
+              "selector": "[data-teammate=\"Maya\"]"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify the focused Workload state shown in the proposal.",
+              "expected": "2 active tasks shown \u00b7 Maya",
+              "selector": "#filter-status"
+            },
+            {
+              "acceptanceIds": [
+                "AC-3",
+                "AC-4"
+              ],
+              "action": "reload",
+              "description": "Reload with the obsolete Dark preference still present and Maya focus saved."
+            },
+            {
+              "acceptanceIds": [
+                "AC-3",
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify reload restores Board and preserves teammate focus.",
+              "expected": "3 tasks shown \u00b7 Maya",
+              "selector": "#filter-status"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "fill",
+              "description": "Search within Maya's tasks using the unchanged search field.",
+              "selector": "#search",
+              "value": "welcome"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify search combines with teammate focus.",
+              "expected": "1 task shown \u00b7 Maya",
+              "selector": "#filter-status"
+            },
+            {
+              "acceptanceIds": [
+                "AC-4"
+              ],
+              "action": "assert_text",
+              "description": "Verify the original task remains visible after filtering.",
+              "expected": "Polish the welcome screen",
+              "selector": "[data-task-id=\"welcome\"] h3"
+            }
+          ],
+          "browserJourneySha256": "6bcb789c425577a28cea3b91cdeae8758051b2662a6c00460a843a83c9cfe211"
+        },
+        "spec": "import { test, expect } from '@playwright/test';\n\nconst appearanceKey = 'bma-playground.appearance.v1';\nconst boardKey = 'bma-playground.board.v1';\nconst focusKey = 'bma-playground.focus.v1';\nconst title = 'Polish the welcome screen';\nconst fixture = [\n  { id: 'welcome', status: 'todo', owner: 'Maya', effort: 8 },\n  { id: 'shortcuts', status: 'todo', owner: 'Erez', effort: 2 },\n  { id: 'onboarding', status: 'doing', owner: 'Erez', effort: 2 },\n  { id: 'mobile', status: 'doing', owner: 'Maya', effort: 4 },\n  { id: 'tokens', status: 'done', owner: 'Maya', effort: 3 },\n  { id: 'repo', status: 'done', owner: 'Erez', effort: 3 }\n];\nconst viewButton = (page, name) => page.getByRole('group', { name: 'Launch view', exact: true }).getByRole('button', { name, exact: true });\nconst teammate = (page, name) => page.getByRole('group', { name: 'Focus by teammate', exact: true }).getByRole('button', { name, exact: true });\nconst status = page => page.getByRole('combobox', { name: `Status for ${title}`, exact: true });\nconst owner = page => page.getByRole('combobox', { name: `Owner for ${title}`, exact: true });\nconst effort = page => page.getByRole('textbox', { name: `Effort for ${title}`, exact: true });\nconst saveEffort = page => page.getByRole('button', { name: `Save effort for ${title}`, exact: true });\nasync function switchView(page, name) {\n  await viewButton(page, name).click();\n  await expect(viewButton(page, name)).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, name === 'Board' ? 'Workload' : 'Board')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator(name === 'Board' ? '#board' : '#workload')).toBeVisible();\n  await expect(page.locator(name === 'Board' ? '#workload' : '#board')).toBeHidden();\n}\nasync function light(page, view) {\n  await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');\n  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(243, 246, 252)');\n  await expect(page.locator('html')).toHaveCSS('color', 'rgb(24, 49, 79)');\n  const card = page.locator(view === 'Board' ? '#board [data-task-id=\"mobile\"]' : '#workload [data-workload-task=\"mobile\"]');\n  await expect(card).toBeVisible();\n  await expect(card).toHaveCSS('background-color', 'rgb(255, 255, 255)');\n  await expect(card.locator('h3')).toHaveCSS('color', 'rgb(24, 49, 79)');\n}\nasync function loads(page, maya, erez) {\n  await expect(page.locator('[data-workload-owner=\"Maya\"] [data-workload-load]')).toHaveText(`${maya} / 8 points`);\n  await expect(page.locator('[data-workload-owner=\"Erez\"] [data-workload-load]')).toHaveText(`${erez} / 8 points`);\n}\nasync function defaults(page) {\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(6);\n  for (const column of ['todo', 'doing', 'done']) await expect(page.locator(`[data-column=\"${column}\"] [data-task-id]`)).toHaveCount(2);\n  await expect(page.locator('#progress-percent')).toHaveText('33%');\n  await expect(page.locator('#completion-count')).toHaveText('2 of 6 tasks');\n  await expect(page.locator('#filter-status')).toHaveText('6 tasks shown \u00b7 All teammates');\n}\nasync function seed(page, tasks, focus = 'All') {\n  await page.evaluate(({ tasks, focus, boardKey, focusKey }) => {\n    localStorage.setItem(boardKey, JSON.stringify(tasks));\n    localStorage.setItem(focusKey, focus);\n  }, { tasks, focus, boardKey, focusKey });\n  await page.reload();\n}\n\ntest.beforeEach(async ({ page }) => {\n  await page.addInitScript(({ appearanceKey, boardKey, focusKey }) => {\n    if (!sessionStorage.getItem('acceptance-initialized')) {\n      localStorage.setItem(appearanceKey, 'dark');\n      localStorage.removeItem(boardKey);\n      localStorage.removeItem(focusKey);\n      sessionStorage.setItem('acceptance-initialized', 'yes');\n    }\n  }, { appearanceKey, boardKey, focusKey });\n  await page.goto('/');\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n});\n\ntest('[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal', async ({ page }) => {\n  for (const width of [1440, 390]) {\n    await page.setViewportSize({ width, height: 1080 });\n    for (const view of ['Board', 'Workload']) {\n      await switchView(page, view);\n      await expect(page.locator('#appearance-control, #appearance-status, [data-appearance-option]')).toHaveCount(0);\n      await expect(page.getByRole('group', { name: 'Appearance', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByRole('button', { name: 'Light', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByRole('button', { name: 'Dark', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByText(/^Appearance:/)).toHaveCount(0);\n      await viewButton(page, view).focus();\n      for (let i = 0; i < 45; i++) {\n        await page.keyboard.press('Tab');\n        const active = page.locator(':focus');\n        await expect(active).not.toHaveText(/^(Light|Dark)$/);\n        await expect(active).not.toHaveAttribute('data-appearance-option', /.+/);\n      }\n    }\n  }\n});\n\ntest('[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings', async ({ page }) => {\n  await page.evaluate(key => localStorage.removeItem(key), appearanceKey);\n  for (const colorScheme of ['light', 'dark']) {\n    await page.emulateMedia({ colorScheme });\n    await page.reload();\n    await light(page, 'Board');\n    await expect(page.getByRole('searchbox', { name: 'Search tasks', exact: true })).toHaveCSS('color-scheme', 'light');\n    await expect(page.locator('.search-field')).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(status(page)).toHaveCSS('color-scheme', 'light');\n    await switchView(page, 'Workload');\n    await light(page, 'Workload');\n    await expect(owner(page)).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(owner(page)).toHaveCSS('color-scheme', 'light');\n    await expect(effort(page)).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(effort(page)).toHaveCSS('color', 'rgb(24, 49, 79)');\n    await expect(page.locator('[data-workload-owner=\"Maya\"] .workload-summary')).toHaveCSS('background-color', 'rgb(255, 250, 243)');\n    await expect(page.locator('[data-workload-owner=\"Maya\"] [data-overload-warning]')).toHaveText('! Over capacity \u00b7 4 points over');\n    await owner(page).focus();\n    await page.keyboard.press('Tab');\n    await expect(effort(page)).toBeFocused();\n    await expect(effort(page)).toHaveCSS('outline-style', 'solid');\n    await expect(effort(page)).toHaveCSS('outline-width', '3px');\n    await expect(effort(page)).toHaveCSS('outline-color', 'rgb(37, 75, 206)');\n  }\n});\n\ntest('[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility', async ({ page }) => {\n  await viewButton(page, 'Board').focus();\n  await page.keyboard.press('Tab');\n  await expect(viewButton(page, 'Workload')).toBeFocused();\n  await expect(viewButton(page, 'Workload')).toHaveCSS('outline-style', 'solid');\n  await expect(viewButton(page, 'Workload')).toHaveCSS('outline-width', '3px');\n  await page.keyboard.press('Enter');\n  await expect(viewButton(page, 'Workload')).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator('#workload')).toBeVisible();\n  await expect(page.locator('#board')).toBeHidden();\n  await page.keyboard.press('Shift+Tab');\n  await expect(viewButton(page, 'Board')).toBeFocused();\n  await page.keyboard.press('Space');\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, 'Workload')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator('#board')).toBeVisible();\n  await expect(page.locator('#workload')).toBeHidden();\n});\n\ntest('[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload', async ({ page }) => {\n  await page.emulateMedia({ colorScheme: 'dark' });\n  const customized = fixture.map(task => task.id === 'welcome' ? { ...task, status: 'doing', owner: 'Erez', effort: 5 } : task);\n  await seed(page, customized, 'Maya');\n  for (let cycle = 0; cycle < 2; cycle++) {\n    await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n    await expect(teammate(page, 'Maya')).toHaveAttribute('aria-pressed', 'true');\n    await expect(page.locator('#filter-status')).toHaveText('2 tasks shown \u00b7 Maya');\n    await light(page, 'Board');\n    await switchView(page, 'Workload');\n    await light(page, 'Workload');\n    await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n    await teammate(page, 'All').click();\n    await expect(owner(page)).toHaveValue('Erez');\n    await expect(effort(page)).toHaveValue('5');\n    await expect(page.locator('[data-workload-task=\"welcome\"] .card-top')).toContainText('In progress');\n    await loads(page, 4, 9);\n    await switchView(page, 'Board');\n    await expect(page.locator('[data-column=\"doing\"] [data-task-id=\"welcome\"]')).toBeVisible();\n    await expect(status(page)).toHaveValue('doing');\n    await teammate(page, 'Maya').click();\n    await switchView(page, 'Workload');\n    await page.reload();\n  }\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(teammate(page, 'Maya')).toHaveAttribute('aria-pressed', 'true');\n  await light(page, 'Board');\n});\n\ntest('[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload', async ({ page }) => {\n  await defaults(page);\n  await switchView(page, 'Workload');\n  await expect(page.locator('#workload .workload-context')).toHaveText('Active effort \u00b7 To do + In progress. Totals include all tasks regardless of filters; Done adds zero.');\n  await expect(page.locator('#filter-status')).toHaveText('4 active tasks shown \u00b7 All teammates');\n  await loads(page, 12, 4);\n  await teammate(page, 'Maya').click();\n  await expect(page.locator('#filter-status')).toHaveText('2 active tasks shown \u00b7 Maya');\n  await expect(page.locator('#workload [data-workload-task]')).toHaveCount(2);\n  await loads(page, 12, 4);\n  await page.reload();\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(3);\n});\n\ntest('[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity', async ({ page }) => {\n  await status(page).focus();\n  await page.keyboard.press('End');\n  await page.keyboard.press('Tab');\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('[data-column=\"done\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await expect(page.locator('#completion-count')).toHaveText('3 of 6 tasks');\n  await expect(page.locator('#announcement')).toHaveAttribute('aria-live', 'polite');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to Done.`);\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n  await expect(page.locator('[data-workload-task=\"welcome\"]')).toHaveCount(0);\n  await expect(page.locator('[data-workload-owner=\"Maya\"] [data-overload-warning]')).toHaveCount(0);\n  await page.reload();\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n});\n\ntest('[AC-4] Dragging welcome independently to Done updates completion capacity and persistence', async ({ page }) => {\n  await page.setViewportSize({ width: 1440, height: 1080 });\n  await page.locator('[data-task-id=\"welcome\"]').dragTo(page.locator('[data-column=\"done\"]'), { targetPosition: { x: 30, y: 45 } });\n  await expect(page.locator('[data-column=\"done\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(6);\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await expect(page.locator('#completion-count')).toHaveText('3 of 6 tasks');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to Done.`);\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n  await page.reload();\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n});\n\ntest('[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist', async ({ page }) => {\n  await status(page).selectOption('doing');\n  await expect(status(page)).toBeFocused();\n  await expect(page.locator('[data-column=\"doing\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await switchView(page, 'Workload');\n  await owner(page).focus();\n  await page.keyboard.press('End');\n  await page.keyboard.press('Tab');\n  await expect(owner(page)).toHaveValue('Erez');\n  await expect(effort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`${title} reassigned to Erez.`);\n  await loads(page, 4, 12);\n  await page.keyboard.press('ControlOrMeta+A');\n  await page.keyboard.type('5');\n  await page.keyboard.press('Enter');\n  await expect(effort(page)).toHaveValue('5');\n  await expect(effort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} saved as 5 points.`);\n  await loads(page, 4, 9);\n  await effort(page).fill('4');\n  await page.keyboard.press('Tab');\n  await expect(saveEffort(page)).toBeFocused();\n  await page.keyboard.press('Space');\n  await expect(saveEffort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} saved as 4 points.`);\n  await loads(page, 4, 8);\n  await expect(page.locator('#save-state')).toHaveText('Saved on this device');\n  await page.reload();\n  await expect(status(page)).toHaveValue('doing');\n  await switchView(page, 'Workload');\n  await expect(owner(page)).toHaveValue('Erez');\n  await expect(effort(page)).toHaveValue('4');\n  await loads(page, 4, 8);\n});\n\ntest('[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals', async ({ page }) => {\n  await switchView(page, 'Workload');\n  for (const invalid of ['', '0', '9', '1.5', 'abc']) {\n    await effort(page).fill(invalid);\n    await saveEffort(page).click();\n    await expect(effort(page)).toHaveAttribute('aria-invalid', 'true');\n    await expect(effort(page)).toHaveAttribute('aria-describedby', 'effort-error-welcome');\n    await expect(page.locator('#effort-error-welcome')).toHaveText('Enter a whole number from 1 to 8. Previous saved effort remains 8 points.');\n    await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} was not saved. Enter a whole number from 1 to 8.`);\n    await expect(saveEffort(page)).toBeFocused();\n    await loads(page, 12, 4);\n  }\n  await page.reload();\n  await switchView(page, 'Workload');\n  await expect(effort(page)).toHaveValue('8');\n  await expect(page.locator('#effort-error-welcome')).toHaveCount(0);\n  await effort(page).fill('1');\n  await effort(page).press('Enter');\n  await expect(effort(page)).not.toHaveAttribute('aria-invalid', 'true');\n  await expect(page.locator('#effort-error-welcome')).toHaveCount(0);\n  await loads(page, 5, 4);\n});\n\ntest('[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All', async ({ page }) => {\n  const search = page.getByRole('searchbox', { name: 'Search tasks', exact: true });\n  await teammate(page, 'Maya').click();\n  await search.fill('welcome');\n  await expect(page.locator('#filter-status')).toHaveText('1 task shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(1);\n  await expect(page.locator('[data-task-id=\"welcome\"] h3')).toHaveText(title);\n  await expect(page.locator('#progress-percent')).toHaveText('33%');\n  await search.fill('');\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(3);\n  await search.fill('welcome');\n  await teammate(page, 'Erez').click();\n  await expect(page.locator('#filter-status')).toHaveText('0 tasks shown \u00b7 Erez');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(0);\n  await expect(page.locator('#filter-empty')).toBeVisible();\n  await expect(page.locator('#filter-empty-title')).toHaveText('No matching tasks');\n  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();\n  await expect(search).toHaveValue('');\n  await expect(teammate(page, 'All')).toBeFocused();\n  await expect(teammate(page, 'All')).toHaveAttribute('aria-pressed', 'true');\n  await defaults(page);\n  await page.reload();\n  await defaults(page);\n});\n\ntest('[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search', async ({ page }) => {\n  await teammate(page, 'Maya').click();\n  await page.keyboard.press('/');\n  const search = page.getByRole('searchbox', { name: 'Search tasks', exact: true });\n  await expect(search).toBeFocused();\n  await page.keyboard.type('  WELCOME ');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(1);\n  await expect(page.locator('#search-result')).toHaveText('1 task matches \u201cWELCOME\u201d');\n  await page.keyboard.press('Escape');\n  await expect(search).toHaveValue('');\n  await expect(search).not.toBeFocused();\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await switchView(page, 'Workload');\n  await search.fill('welcome');\n  await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n  await loads(page, 12, 4);\n  await teammate(page, 'Erez').click();\n  await expect(page.locator('#filter-empty-title')).toHaveText('No matching active tasks');\n  await expect(page.locator('#filter-empty')).toBeVisible();\n  await loads(page, 12, 4);\n  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();\n  await expect(teammate(page, 'All')).toBeFocused();\n  await expect(search).toHaveValue('');\n  await expect(page.locator('#filter-status')).toHaveText('4 active tasks shown \u00b7 All teammates');\n  await loads(page, 12, 4);\n});\n\ntest('[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture', async ({ page }) => {\n  await status(page).selectOption('done');\n  await switchView(page, 'Workload');\n  const mobileEffort = page.getByRole('textbox', { name: 'Effort for Give mobile some love', exact: true });\n  await mobileEffort.fill('3');\n  await mobileEffort.press('Enter');\n  await mobileEffort.fill('9');\n  await mobileEffort.press('Enter');\n  await expect(page.locator('#effort-error-mobile')).toBeVisible();\n  await teammate(page, 'Maya').click();\n  await page.locator('#search').fill('mobile');\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n  await expect(page.locator('#announcement')).toHaveText('Demo board reset. Two of six tasks complete.');\n  await expect(page.locator('#search')).toHaveValue('');\n  await expect(teammate(page, 'All')).toHaveAttribute('aria-pressed', 'true');\n  await expect(page.locator('.effort-error')).toHaveCount(0);\n  await expect(effort(page)).toHaveValue('8');\n  await expect(mobileEffort).toHaveValue('4');\n  await loads(page, 12, 4);\n  await switchView(page, 'Board');\n  await defaults(page);\n  await expect(status(page)).toHaveValue('todo');\n  await page.reload();\n  await defaults(page);\n  await switchView(page, 'Workload');\n  await expect(mobileEffort).toHaveValue('4');\n});\n\ntest('[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture', async ({ page }) => {\n  for (const raw of ['bad json', '{}', 'null', '[]', '[null]', JSON.stringify(Array(6).fill(fixture[0]))]) {\n    await page.evaluate(({ raw, boardKey, focusKey }) => {\n      localStorage.setItem(boardKey, raw);\n      localStorage.setItem(focusKey, 'Unknown teammate');\n    }, { raw, boardKey, focusKey });\n    await page.reload();\n    await defaults(page);\n    await expect(status(page)).toHaveValue('todo');\n    await switchView(page, 'Workload');\n    await loads(page, 12, 4);\n    await expect(owner(page)).toHaveValue('Maya');\n    await expect(effort(page)).toHaveValue('8');\n    await page.reload();\n    await defaults(page);\n  }\n});\n\ntest('[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy', async ({ page }) => {\n  const saved = fixture.map(task => ({ ...task }));\n  saved[0] = { ...saved[0], status: 'doing', owner: 'Erez', effort: 5, title: 'Untrusted title', description: 'Untrusted description', initials: 'XX', color: 'lilac' };\n  saved[3] = { ...saved[3], status: 'unknown', owner: 'Unknown', effort: 9 };\n  delete saved[1].effort;\n  await seed(page, saved);\n  for (let cycle = 0; cycle < 2; cycle++) {\n    await expect(status(page)).toHaveValue('doing');\n    await expect(page.locator('[data-task-id=\"welcome\"] h3')).toHaveText(title);\n    await expect(page.getByText('Untrusted title', { exact: true })).toHaveCount(0);\n    await expect(page.getByText('Untrusted description', { exact: true })).toHaveCount(0);\n    await expect(page.locator('[data-task-id=\"welcome\"] .avatar')).toHaveText('EW');\n    await expect(page.locator('[data-status-for=\"mobile\"]')).toHaveValue('doing');\n    await switchView(page, 'Workload');\n    await expect(owner(page)).toHaveValue('Erez');\n    await expect(effort(page)).toHaveValue('5');\n    await expect(page.locator('[data-owner-for=\"mobile\"]')).toHaveValue('Maya');\n    await expect(page.locator('[data-effort-for=\"mobile\"]')).toHaveValue('4');\n    await expect(page.locator('[data-effort-for=\"shortcuts\"]')).toHaveValue('2');\n    await loads(page, 4, 9);\n    await page.reload();\n  }\n});\n\ntest('[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback', async ({ page }) => {\n  await page.addInitScript(() => {\n    Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Storage unavailable', 'SecurityError'); } });\n  });\n  await page.reload();\n  await defaults(page);\n  await light(page, 'Board');\n  await expect(page.locator('#save-state')).toHaveText('Changes last until you close this page');\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await status(page).selectOption('doing');\n  await expect(status(page)).toHaveValue('doing');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to In progress.`);\n  await switchView(page, 'Workload');\n  await light(page, 'Workload');\n  await owner(page).selectOption('Erez');\n  await effort(page).fill('5');\n  await effort(page).press('Enter');\n  await loads(page, 4, 9);\n  await expect(effort(page)).toHaveValue('5');\n  await teammate(page, 'Maya').click();\n  await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n  await page.locator('#search').fill('mobile');\n  await expect(page.locator('#workload [data-workload-task=\"mobile\"]')).toBeVisible();\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await page.reload();\n  await defaults(page);\n  await light(page, 'Board');\n  await switchView(page, 'Workload');\n  await light(page, 'Workload');\n  await loads(page, 12, 4);\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n  await expect(page.locator('#announcement')).toHaveText('Demo board reset. Two of six tasks complete.');\n  await expect(page.locator('#save-state')).toHaveText('Changes last until you close this page');\n});\n"
+      },
+      "checks": {
+        "schemaVersion": 1,
+        "passed": false,
+        "status": "failed",
+        "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+        "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+        "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+        "commands": [
+          {
+            "name": "canonical-patch",
+            "command": [
+              "/opt/hostedtoolcache/Python/3.12.15/x64/bin/python",
+              "-I",
+              "-B",
+              "-c",
+              "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); from patch_boundary import canonical_patch; sys.stdout.buffer.write(canonical_patch(Path(sys.argv[2]), sys.argv[3], sys.stdin.buffer.read()))",
+              "/home/runner/work/bma-playground/bma-playground/pipeline",
+              "/home/runner/work/bma-playground/bma-playground",
+              "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/canonical-patch.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/canonical-patch.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.114
+          },
+          {
+            "name": "clone",
+            "command": [
+              "git",
+              "clone",
+              "--quiet",
+              "--no-hardlinks",
+              "--no-checkout",
+              "/home/runner/work/bma-playground/bma-playground",
+              "/tmp/bma-feature-check-1bj5qcys/repo"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/clone.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/clone.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.016
+          },
+          {
+            "name": "checkout-base",
+            "command": [
+              "git",
+              "-C",
+              "/tmp/bma-feature-check-1bj5qcys/repo",
+              "checkout",
+              "--quiet",
+              "--detach",
+              "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/checkout-base.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/checkout-base.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.016
+          },
+          {
+            "name": "verify-base",
+            "command": [
+              "git",
+              "-C",
+              "/tmp/bma-feature-check-1bj5qcys/repo",
+              "rev-parse",
+              "HEAD"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/verify-base.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/verify-base.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.001
+          },
+          {
+            "name": "apply-candidate",
+            "command": [
+              "git",
+              "apply",
+              "--index",
+              "-"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/apply-candidate.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/apply-candidate.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.008
+          },
+          {
+            "name": "protected-inputs",
+            "command": [
+              "git",
+              "ls-files",
+              "-z"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/protected-inputs.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/protected-inputs.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.001
+          },
+          {
+            "name": "npm-ci",
+            "command": [
+              "npm",
+              "ci",
+              "--ignore-scripts",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-ci.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-ci.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 1.166
+          },
+          {
+            "name": "npm-test",
+            "command": [
+              "npm",
+              "test"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-test.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-test.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.666
+          },
+          {
+            "name": "npm-build",
+            "command": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-build.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/npm-build.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 0.415
+          },
+          {
+            "name": "board-browser",
+            "command": [
+              "node",
+              "node_modules/@playwright/test/cli.js",
+              "test",
+              "--config=feature-checks.playwright.config.mjs",
+              "--forbid-only",
+              "--retries=0",
+              "--timeout=30000",
+              "--global-timeout=240000",
+              "--fail-on-flaky-tests",
+              "tests/browser/board.spec.js",
+              "--reporter=line"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/board-browser.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/board-browser.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 5.491
+          },
+          {
+            "name": "repair-browser",
+            "command": [
+              "node",
+              "node_modules/@playwright/test/cli.js",
+              "test",
+              "--config=feature-checks.playwright.config.mjs",
+              "--forbid-only",
+              "--retries=0",
+              "--timeout=30000",
+              "--global-timeout=240000",
+              "--fail-on-flaky-tests",
+              "tests/browser/repair.spec.js",
+              "--reporter=line"
+            ],
+            "status": "passed",
+            "exitCode": 0,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/repair-browser.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/repair-browser.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 3.483
+          },
+          {
+            "name": "feature-browser",
+            "command": [
+              "node",
+              "node_modules/@playwright/test/cli.js",
+              "test",
+              "--config=feature-only.playwright.config.mjs",
+              "--forbid-only",
+              "--retries=0",
+              "--timeout=30000",
+              "--global-timeout=240000",
+              "--fail-on-flaky-tests",
+              "tests/browser/workload.acceptance.spec.js",
+              "--reporter=json"
+            ],
+            "status": "failed",
+            "exitCode": 1,
+            "timedOut": false,
+            "stdout": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/feature-browser.stdout.log",
+            "stderr": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/feature-browser.stderr.log",
+            "timeoutSeconds": 300,
+            "durationSeconds": 13.248,
+            "stdoutTail": "\": 217,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 1,\n                  \"parallelIndex\": 1,\n                  \"status\": \"passed\",\n                  \"duration\": 1502,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:13.706Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-36634214d467577a0f74\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 252,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 2,\n                  \"parallelIndex\": 0,\n                  \"status\": \"passed\",\n                  \"duration\": 1077,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:15.368Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-ef6612cc2f61952b1a99\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 275,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 1,\n                  \"parallelIndex\": 1,\n                  \"status\": \"passed\",\n                  \"duration\": 935,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:15.230Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-2c5d2b6d64c44320f2c5\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 301,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 1,\n                  \"parallelIndex\": 1,\n                  \"status\": \"passed\",\n                  \"duration\": 1370,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:16.179Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-1713922407fae482fb24\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 328,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 2,\n                  \"parallelIndex\": 0,\n                  \"status\": \"passed\",\n                  \"duration\": 3049,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:16.617Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-70add1cdeb0cc68a452b\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 356,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 1,\n                  \"parallelIndex\": 1,\n                  \"status\": \"passed\",\n                  \"duration\": 948,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:17.565Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-946a4c49aa46f7a94c0a\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 374,\n          \"column\": 1\n        },\n        {\n          \"title\": \"[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback\",\n          \"ok\": true,\n          \"tags\": [],\n          \"tests\": [\n            {\n              \"timeout\": 30000,\n              \"annotations\": [],\n              \"expectedStatus\": \"passed\",\n              \"projectId\": \"desktop\",\n              \"projectName\": \"desktop\",\n              \"results\": [\n                {\n                  \"workerIndex\": 1,\n                  \"parallelIndex\": 1,\n                  \"status\": \"passed\",\n                  \"duration\": 1337,\n                  \"errors\": [],\n                  \"stdout\": [],\n                  \"stderr\": [],\n                  \"retry\": 0,\n                  \"startTime\": \"2026-10-19T11:29:18.530Z\",\n                  \"annotations\": [],\n                  \"attachments\": []\n                }\n              ],\n              \"status\": \"expected\"\n            }\n          ],\n          \"id\": \"e85ecbf5461b66ea2282-1bd56f39b666f16e162e\",\n          \"file\": \"workload.acceptance.spec.js\",\n          \"line\": 398,\n          \"column\": 1\n        }\n      ]\n    }\n  ],\n  \"errors\": [],\n  \"stats\": {\n    \"startTime\": \"2026-10-19T11:29:07.254Z\",\n    \"duration\": 12691.677,\n    \"expected\": 14,\n    \"skipped\": 0,\n    \"unexpected\": 1,\n    \"flaky\": 0\n  }\n}\n",
+            "stderrTail": ""
+          }
+        ],
+        "featureCases": [
+          {
+            "title": "[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal",
+            "fullTitle": "workload.acceptance.spec.js > [AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal",
+            "file": "workload.acceptance.spec.js",
+            "line": 69,
+            "project": "desktop",
+            "status": "unexpected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "failed"
+            ],
+            "executed": true,
+            "passed": false,
+            "acceptanceIds": [
+              "AC-1"
+            ],
+            "errors": [
+              "test did not pass cleanly",
+              "failed, skipped, retried, or unexecuted attempt"
+            ],
+            "observations": [
+              "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).not.\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator(':focus')\nExpected pattern: not \u001b[32m/^(Light|Dark)$/\u001b[39m\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"not toHaveText\" locator(':focus') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator(':focus')\u001b[22m\n\n\n  81 |         await page.keyboard.press('Tab');\n  82 |         const active = page.locator(':focus');\n> 83 |         await expect(active).not.toHaveText(/^(Light|Dark)$/);\n     |                                  ^\n  84 |         await expect(active).not.toHaveAttribute('data-appearance-option', /.+/);\n  85 |       }\n  86 |     }\n    at /tmp/bma-feature-check-1bj5qcys/repo/tests/browser/workload.acceptance.spec.js:83:34"
+            ]
+          },
+          {
+            "title": "[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings",
+            "fullTitle": "workload.acceptance.spec.js > [AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings",
+            "file": "workload.acceptance.spec.js",
+            "line": 90,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-2"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility",
+            "fullTitle": "workload.acceptance.spec.js > [AC-2] Launch view buttons work by keyboard with visible focus and correct visibility",
+            "file": "workload.acceptance.spec.js",
+            "line": 116,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-2"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload",
+            "fullTitle": "workload.acceptance.spec.js > [AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload",
+            "file": "workload.acceptance.spec.js",
+            "line": 136,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-2",
+              "AC-3"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Default Board and Workload totals and teammate focus survive view switching and reload",
+            "file": "workload.acceptance.spec.js",
+            "line": 165,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity",
+            "file": "workload.acceptance.spec.js",
+            "line": 181,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Dragging welcome independently to Done updates completion capacity and persistence",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Dragging welcome independently to Done updates completion capacity and persistence",
+            "file": "workload.acceptance.spec.js",
+            "line": 202,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist",
+            "file": "workload.acceptance.spec.js",
+            "line": 217,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals",
+            "file": "workload.acceptance.spec.js",
+            "line": 252,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All",
+            "file": "workload.acceptance.spec.js",
+            "line": 275,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search",
+            "file": "workload.acceptance.spec.js",
+            "line": 301,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture",
+            "file": "workload.acceptance.spec.js",
+            "line": 328,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture",
+            "file": "workload.acceptance.spec.js",
+            "line": 356,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy",
+            "fullTitle": "workload.acceptance.spec.js > [AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy",
+            "file": "workload.acceptance.spec.js",
+            "line": 374,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          },
+          {
+            "title": "[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback",
+            "fullTitle": "workload.acceptance.spec.js > [AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback",
+            "file": "workload.acceptance.spec.js",
+            "line": 398,
+            "project": "desktop",
+            "status": "expected",
+            "expectedStatus": "passed",
+            "outcomes": [
+              "passed"
+            ],
+            "executed": true,
+            "passed": true,
+            "acceptanceIds": [
+              "AC-2",
+              "AC-3",
+              "AC-4"
+            ],
+            "errors": [],
+            "observations": []
+          }
+        ],
+        "executedFeatureCases": 15,
+        "executedProjectCases": 15,
+        "coveredAcceptanceIds": [
+          "AC-2",
+          "AC-3",
+          "AC-4"
+        ],
+        "errors": [
+          "feature-browser: failed (exit 1)",
+          "desktop: [AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal: test did not pass cleanly; failed, skipped, retried, or unexecuted attempt",
+          "Feature report contains failed, flaky, or skipped outcomes",
+          "Missing passing title tags: AC-1",
+          "Every frozen feature case must execute once on desktop and pass cleanly"
+        ],
+        "artifacts": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c",
+        "resultFile": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/result.json",
+        "acceptanceIds": [
+          "AC-1",
+          "AC-2",
+          "AC-3",
+          "AC-4"
+        ],
+        "actualAcceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+        "serverPort": 47261,
+        "featureReport": "/home/runner/work/bma-playground/bma-playground/artifacts/issue-feature-5922933166/candidate-0/checks/run-ea173998dc2d480581e59b49b43e644c/feature-browser.stdout.log",
+        "infrastructureFailure": false
+      },
+      "codeReview": {
+        "schemaVersion": 1,
+        "verdict": "approve",
+        "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+        "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+        "summary": "No actionable product defect found. Source removes appearance controls and preference handling while retaining light styling and existing interactions. Supplied results pass AC-2\u2013AC-4; AC-1 fails because its tab-traversal assertion requires a focused DOM element even when focus leaves the page, not because an appearance control remains. Full AC-1 browser verification is therefore incomplete. Working tree is unchanged.",
+        "findings": []
+      },
+      "diagnosis": {
+        "sessionId": "sess_aeawsylevet5m2rmhs2hmkcr25uxe7o5k7giu",
+        "turnId": "turn_bnyeuscqy7pqbu2dob4y",
+        "result": {
+          "schemaVersion": 1,
+          "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+          "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+          "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+          "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+          "acceptanceManifestSha256": "c9fbfc6e742e4f62454d560aaa05f23d69bd87caeb7b05f73b366d403cf25a72",
+          "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+          "checksSha256": "13fbeba99b579767341e430390d5e648e27d707e5de01460353116193a942b03",
+          "classification": "test_defect",
+          "affectedTitles": [
+            "[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal"
+          ],
+          "evidence": [
+            "The actual failure at workload.acceptance.spec.js:83 is locator(':focus').not.toHaveText(/^(Light|Dark)$/) reporting 'element(s) not found', not finding a Light/Dark control. The preceding appearance-element, accessible-group and button absence assertions completed before traversal failed.",
+            "The generated test presses Tab 45 times and requires a focused DOM element after every press. Normal browser traversal can leave the document for browser chrome, at which point ':focus' matches nothing; Playwright's negative text assertion still requires an element. A conforming application without appearance controls can therefore fail this assertion.",
+            "The pinned AC-1 contract requires absence of appearance controls and their keyboard exposure, not a focus trap or continuous document focus. Read-only inspection found no appearance references in src files; src/main.js retains ordinary view/filter controls and handles only slash and Escape in its document keydown listener, with no Tab interception. index.html retains normal links, search and reset controls. Thus the missing-focus observation matches permitted native traversal, independently supporting the diagnosis rather than relying on the timeout or code-review opinion.",
+            "The supplied report records 14 passing cases and this single failure. AC-1 traversal verification remains incomplete; this diagnosis does not establish release readiness."
+          ]
+        }
+      },
+      "author": {
+        "sessionId": "sess_aeawsylejaunm2rbazuhtamrs5lt3wdywqcbe",
+        "turnId": "turn_mm3sewi7s5dj74vcjtod",
+        "result": {
+          "schemaVersion": 1,
+          "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+          "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+          "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+          "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+          "acceptanceManifestSha256": "c9fbfc6e742e4f62454d560aaa05f23d69bd87caeb7b05f73b366d403cf25a72",
+          "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+          "checksSha256": "13fbeba99b579767341e430390d5e648e27d707e5de01460353116193a942b03",
+          "replacements": [
+            {
+              "old": "        const active = page.locator(':focus');\n        await expect(active).not.toHaveText(/^(Light|Dark)$/);\n        await expect(active).not.toHaveAttribute('data-appearance-option', /.+/);",
+              "new": "        const active = await page.evaluate(() => {\n          const element = document.querySelector(':focus');\n          return {\n            text: (element?.textContent ?? '').replace(/\\s+/g, ' ').trim(),\n            appearanceOption: element?.getAttribute('data-appearance-option') ?? ''\n          };\n        });\n        expect(active.text).not.toMatch(/^(Light|Dark)$/);\n        expect(active.appearanceOption).not.toMatch(/.+/);",
+              "reason": "Native Tab traversal can leave document focus for browser chrome. Snapshot the focused element's text and attribute without requiring a DOM match, then unconditionally assert both existing prohibitions after every Tab press. All 45 traversal steps, both widths and views, and all structural absence assertions remain intact; no focus trap is required."
+            }
+          ]
+        }
+      },
+      "review": {
+        "sessionId": "sess_aeawsylenqunm2xua7fjqph4ccx55h3atosiu",
+        "turnId": "turn_lffsanqy67y5vbxgc55a",
+        "result": {
+          "schemaVersion": 1,
+          "identity": {
+            "baseCommit": "e8ff99518f3423bcf831fdc0f9fd816e53c4d7c7",
+            "planSha256": "285b4d8e7d02eccac645c626e6ed05fb11bd2dfa32f25852ded7117be43e375a",
+            "prdSha256": "70f3b4edba4452239c8a91558e9c680a3fb823a95e2092eded852220ede620d8",
+            "acceptanceSha256": "49bb3d1a5e67cde703e90c56125e60d7b603663829c96beddbe46e401709419c",
+            "acceptanceManifestSha256": "c9fbfc6e742e4f62454d560aaa05f23d69bd87caeb7b05f73b366d403cf25a72",
+            "patchSha256": "8a018c139828177b10f9ce3fce2fb5fac9ea693621fcefcc621bf4bb4a01d240",
+            "checksSha256": "13fbeba99b579767341e430390d5e648e27d707e5de01460353116193a942b03",
+            "correctedAcceptanceSha256": "a33fc975d7d613d3154a23535a8c72a7dcbbd4b4551f3be43d659f5151aead32"
+          },
+          "verdict": "approve",
+          "preservesAllCriteria": true,
+          "changesOnlyTestDefects": true,
+          "rationale": "Preparation succeeded; review was read-only and tests were not executed. The sole correction permits native Tab traversal to leave document focus, which the contract does not prohibit. Both negative checks still execute after every Tab, and unconditional structural assertions independently prohibit hidden or visible appearance controls. Empty snapshots therefore do not allow prohibited controls to escape. All shared helpers and remaining cases are unchanged. This approves test mechanics only, not application compliance; the inspected baseline still contains appearance behavior, so the supplied diagnosis's appearance-free source claim is not independently verified.",
+          "caseAssessments": [
+            {
+              "title": "[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal",
+              "preserved": true,
+              "reason": "Both widths, both views, 45 Tab steps and all structural absence assertions remain. Snapshot negatives preserve the prohibitions without imposing continuous document focus."
+            },
+            {
+              "title": "[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings",
+              "preserved": true,
+              "reason": "Unchanged computed styles, OS preferences, native fields, warning and keyboard focus checks."
+            },
+            {
+              "title": "[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility",
+              "preserved": true,
+              "reason": "Unchanged keyboard activation, focus, pressed states and mutually exclusive visibility."
+            },
+            {
+              "title": "[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload",
+              "preserved": true,
+              "reason": "Unchanged customized fixture, light styles, saved fields, totals and repeated reload checks."
+            },
+            {
+              "title": "[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload",
+              "preserved": true,
+              "reason": "Unchanged six-task baseline, workload context, totals and persisted focus checks."
+            },
+            {
+              "title": "[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity",
+              "preserved": true,
+              "reason": "Unchanged keyboard editing, announcement, completion, capacity and persistence assertions."
+            },
+            {
+              "title": "[AC-4] Dragging welcome independently to Done updates completion capacity and persistence",
+              "preserved": true,
+              "reason": "Independent drag action and all resulting state and reload assertions remain unchanged."
+            },
+            {
+              "title": "[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist",
+              "preserved": true,
+              "reason": "Unchanged focus restoration, owner editing, both effort commit paths, announcements and persistence."
+            },
+            {
+              "title": "[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals",
+              "preserved": true,
+              "reason": "All five invalid inputs, exact accessible errors, retained values, totals and recovery remain unchanged."
+            },
+            {
+              "title": "[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All",
+              "preserved": true,
+              "reason": "Unchanged intersection, empty state, completion invariance, clearing and All focus checks."
+            },
+            {
+              "title": "[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search",
+              "preserved": true,
+              "reason": "Unchanged slash, Escape, normalized search, teammate filtering and invariant workload totals."
+            },
+            {
+              "title": "[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture",
+              "preserved": true,
+              "reason": "Unchanged reset setup, exact announcement, cleared state, fixture restoration and reload checks."
+            },
+            {
+              "title": "[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture",
+              "preserved": true,
+              "reason": "All corrupt storage variants and startup/reload fallback assertions remain unchanged."
+            },
+            {
+              "title": "[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy",
+              "preserved": true,
+              "reason": "Unchanged valid-field retention, invalid-field defaults, trusted copy and repeated reload checks."
+            },
+            {
+              "title": "[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback",
+              "preserved": true,
+              "reason": "Unchanged throwing storage setup, light styles, usable edits, fallback text, reload/reset and appearance-announcement negatives."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "spec": "import { test, expect } from '@playwright/test';\n\nconst appearanceKey = 'bma-playground.appearance.v1';\nconst boardKey = 'bma-playground.board.v1';\nconst focusKey = 'bma-playground.focus.v1';\nconst title = 'Polish the welcome screen';\nconst fixture = [\n  { id: 'welcome', status: 'todo', owner: 'Maya', effort: 8 },\n  { id: 'shortcuts', status: 'todo', owner: 'Erez', effort: 2 },\n  { id: 'onboarding', status: 'doing', owner: 'Erez', effort: 2 },\n  { id: 'mobile', status: 'doing', owner: 'Maya', effort: 4 },\n  { id: 'tokens', status: 'done', owner: 'Maya', effort: 3 },\n  { id: 'repo', status: 'done', owner: 'Erez', effort: 3 }\n];\nconst viewButton = (page, name) => page.getByRole('group', { name: 'Launch view', exact: true }).getByRole('button', { name, exact: true });\nconst teammate = (page, name) => page.getByRole('group', { name: 'Focus by teammate', exact: true }).getByRole('button', { name, exact: true });\nconst status = page => page.getByRole('combobox', { name: `Status for ${title}`, exact: true });\nconst owner = page => page.getByRole('combobox', { name: `Owner for ${title}`, exact: true });\nconst effort = page => page.getByRole('textbox', { name: `Effort for ${title}`, exact: true });\nconst saveEffort = page => page.getByRole('button', { name: `Save effort for ${title}`, exact: true });\nasync function switchView(page, name) {\n  await viewButton(page, name).click();\n  await expect(viewButton(page, name)).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, name === 'Board' ? 'Workload' : 'Board')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator(name === 'Board' ? '#board' : '#workload')).toBeVisible();\n  await expect(page.locator(name === 'Board' ? '#workload' : '#board')).toBeHidden();\n}\nasync function light(page, view) {\n  await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');\n  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(243, 246, 252)');\n  await expect(page.locator('html')).toHaveCSS('color', 'rgb(24, 49, 79)');\n  const card = page.locator(view === 'Board' ? '#board [data-task-id=\"mobile\"]' : '#workload [data-workload-task=\"mobile\"]');\n  await expect(card).toBeVisible();\n  await expect(card).toHaveCSS('background-color', 'rgb(255, 255, 255)');\n  await expect(card.locator('h3')).toHaveCSS('color', 'rgb(24, 49, 79)');\n}\nasync function loads(page, maya, erez) {\n  await expect(page.locator('[data-workload-owner=\"Maya\"] [data-workload-load]')).toHaveText(`${maya} / 8 points`);\n  await expect(page.locator('[data-workload-owner=\"Erez\"] [data-workload-load]')).toHaveText(`${erez} / 8 points`);\n}\nasync function defaults(page) {\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(6);\n  for (const column of ['todo', 'doing', 'done']) await expect(page.locator(`[data-column=\"${column}\"] [data-task-id]`)).toHaveCount(2);\n  await expect(page.locator('#progress-percent')).toHaveText('33%');\n  await expect(page.locator('#completion-count')).toHaveText('2 of 6 tasks');\n  await expect(page.locator('#filter-status')).toHaveText('6 tasks shown \u00b7 All teammates');\n}\nasync function seed(page, tasks, focus = 'All') {\n  await page.evaluate(({ tasks, focus, boardKey, focusKey }) => {\n    localStorage.setItem(boardKey, JSON.stringify(tasks));\n    localStorage.setItem(focusKey, focus);\n  }, { tasks, focus, boardKey, focusKey });\n  await page.reload();\n}\n\ntest.beforeEach(async ({ page }) => {\n  await page.addInitScript(({ appearanceKey, boardKey, focusKey }) => {\n    if (!sessionStorage.getItem('acceptance-initialized')) {\n      localStorage.setItem(appearanceKey, 'dark');\n      localStorage.removeItem(boardKey);\n      localStorage.removeItem(focusKey);\n      sessionStorage.setItem('acceptance-initialized', 'yes');\n    }\n  }, { appearanceKey, boardKey, focusKey });\n  await page.goto('/');\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n});\n\ntest('[AC-1] Removed appearance UI is absent at desktop and narrow widths in both views and tab traversal', async ({ page }) => {\n  for (const width of [1440, 390]) {\n    await page.setViewportSize({ width, height: 1080 });\n    for (const view of ['Board', 'Workload']) {\n      await switchView(page, view);\n      await expect(page.locator('#appearance-control, #appearance-status, [data-appearance-option]')).toHaveCount(0);\n      await expect(page.getByRole('group', { name: 'Appearance', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByRole('button', { name: 'Light', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByRole('button', { name: 'Dark', exact: true, includeHidden: true })).toHaveCount(0);\n      await expect(page.getByText(/^Appearance:/)).toHaveCount(0);\n      await viewButton(page, view).focus();\n      for (let i = 0; i < 45; i++) {\n        await page.keyboard.press('Tab');\n        const active = await page.evaluate(() => {\n          const element = document.querySelector(':focus');\n          return {\n            text: (element?.textContent ?? '').replace(/\\s+/g, ' ').trim(),\n            appearanceOption: element?.getAttribute('data-appearance-option') ?? ''\n          };\n        });\n        expect(active.text).not.toMatch(/^(Light|Dark)$/);\n        expect(active.appearanceOption).not.toMatch(/.+/);\n      }\n    }\n  }\n});\n\ntest('[AC-2] Absent preference stays light under light and dark OS preferences with light fields and cream warnings', async ({ page }) => {\n  await page.evaluate(key => localStorage.removeItem(key), appearanceKey);\n  for (const colorScheme of ['light', 'dark']) {\n    await page.emulateMedia({ colorScheme });\n    await page.reload();\n    await light(page, 'Board');\n    await expect(page.getByRole('searchbox', { name: 'Search tasks', exact: true })).toHaveCSS('color-scheme', 'light');\n    await expect(page.locator('.search-field')).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(status(page)).toHaveCSS('color-scheme', 'light');\n    await switchView(page, 'Workload');\n    await light(page, 'Workload');\n    await expect(owner(page)).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(owner(page)).toHaveCSS('color-scheme', 'light');\n    await expect(effort(page)).toHaveCSS('background-color', 'rgb(249, 251, 255)');\n    await expect(effort(page)).toHaveCSS('color', 'rgb(24, 49, 79)');\n    await expect(page.locator('[data-workload-owner=\"Maya\"] .workload-summary')).toHaveCSS('background-color', 'rgb(255, 250, 243)');\n    await expect(page.locator('[data-workload-owner=\"Maya\"] [data-overload-warning]')).toHaveText('! Over capacity \u00b7 4 points over');\n    await owner(page).focus();\n    await page.keyboard.press('Tab');\n    await expect(effort(page)).toBeFocused();\n    await expect(effort(page)).toHaveCSS('outline-style', 'solid');\n    await expect(effort(page)).toHaveCSS('outline-width', '3px');\n    await expect(effort(page)).toHaveCSS('outline-color', 'rgb(37, 75, 206)');\n  }\n});\n\ntest('[AC-2] Launch view buttons work by keyboard with visible focus and correct visibility', async ({ page }) => {\n  await viewButton(page, 'Board').focus();\n  await page.keyboard.press('Tab');\n  await expect(viewButton(page, 'Workload')).toBeFocused();\n  await expect(viewButton(page, 'Workload')).toHaveCSS('outline-style', 'solid');\n  await expect(viewButton(page, 'Workload')).toHaveCSS('outline-width', '3px');\n  await page.keyboard.press('Enter');\n  await expect(viewButton(page, 'Workload')).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator('#workload')).toBeVisible();\n  await expect(page.locator('#board')).toBeHidden();\n  await page.keyboard.press('Shift+Tab');\n  await expect(viewButton(page, 'Board')).toBeFocused();\n  await page.keyboard.press('Space');\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(viewButton(page, 'Workload')).toHaveAttribute('aria-pressed', 'false');\n  await expect(page.locator('#board')).toBeVisible();\n  await expect(page.locator('#workload')).toBeHidden();\n});\n\ntest('[AC-2] [AC-3] Saved Dark is inert without changing customized tasks or Maya focus across reload', async ({ page }) => {\n  await page.emulateMedia({ colorScheme: 'dark' });\n  const customized = fixture.map(task => task.id === 'welcome' ? { ...task, status: 'doing', owner: 'Erez', effort: 5 } : task);\n  await seed(page, customized, 'Maya');\n  for (let cycle = 0; cycle < 2; cycle++) {\n    await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n    await expect(teammate(page, 'Maya')).toHaveAttribute('aria-pressed', 'true');\n    await expect(page.locator('#filter-status')).toHaveText('2 tasks shown \u00b7 Maya');\n    await light(page, 'Board');\n    await switchView(page, 'Workload');\n    await light(page, 'Workload');\n    await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n    await teammate(page, 'All').click();\n    await expect(owner(page)).toHaveValue('Erez');\n    await expect(effort(page)).toHaveValue('5');\n    await expect(page.locator('[data-workload-task=\"welcome\"] .card-top')).toContainText('In progress');\n    await loads(page, 4, 9);\n    await switchView(page, 'Board');\n    await expect(page.locator('[data-column=\"doing\"] [data-task-id=\"welcome\"]')).toBeVisible();\n    await expect(status(page)).toHaveValue('doing');\n    await teammate(page, 'Maya').click();\n    await switchView(page, 'Workload');\n    await page.reload();\n  }\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(teammate(page, 'Maya')).toHaveAttribute('aria-pressed', 'true');\n  await light(page, 'Board');\n});\n\ntest('[AC-4] Default Board and Workload totals and teammate focus survive view switching and reload', async ({ page }) => {\n  await defaults(page);\n  await switchView(page, 'Workload');\n  await expect(page.locator('#workload .workload-context')).toHaveText('Active effort \u00b7 To do + In progress. Totals include all tasks regardless of filters; Done adds zero.');\n  await expect(page.locator('#filter-status')).toHaveText('4 active tasks shown \u00b7 All teammates');\n  await loads(page, 12, 4);\n  await teammate(page, 'Maya').click();\n  await expect(page.locator('#filter-status')).toHaveText('2 active tasks shown \u00b7 Maya');\n  await expect(page.locator('#workload [data-workload-task]')).toHaveCount(2);\n  await loads(page, 12, 4);\n  await page.reload();\n  await expect(viewButton(page, 'Board')).toHaveAttribute('aria-pressed', 'true');\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(3);\n});\n\ntest('[AC-4] Keyboard status edit moves welcome to Done and persists completion and capacity', async ({ page }) => {\n  await status(page).focus();\n  await page.keyboard.press('End');\n  await page.keyboard.press('Tab');\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('[data-column=\"done\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await expect(page.locator('#completion-count')).toHaveText('3 of 6 tasks');\n  await expect(page.locator('#announcement')).toHaveAttribute('aria-live', 'polite');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to Done.`);\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n  await expect(page.locator('[data-workload-task=\"welcome\"]')).toHaveCount(0);\n  await expect(page.locator('[data-workload-owner=\"Maya\"] [data-overload-warning]')).toHaveCount(0);\n  await page.reload();\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n});\n\ntest('[AC-4] Dragging welcome independently to Done updates completion capacity and persistence', async ({ page }) => {\n  await page.setViewportSize({ width: 1440, height: 1080 });\n  await page.locator('[data-task-id=\"welcome\"]').dragTo(page.locator('[data-column=\"done\"]'), { targetPosition: { x: 30, y: 45 } });\n  await expect(page.locator('[data-column=\"done\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(6);\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n  await expect(page.locator('#completion-count')).toHaveText('3 of 6 tasks');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to Done.`);\n  await switchView(page, 'Workload');\n  await loads(page, 4, 4);\n  await page.reload();\n  await expect(status(page)).toHaveValue('done');\n  await expect(page.locator('#progress-percent')).toHaveText('50%');\n});\n\ntest('[AC-4] Status select restores focus and keyboard owner and effort edits recalculate and persist', async ({ page }) => {\n  await status(page).selectOption('doing');\n  await expect(status(page)).toBeFocused();\n  await expect(page.locator('[data-column=\"doing\"] [data-task-id=\"welcome\"]')).toBeVisible();\n  await switchView(page, 'Workload');\n  await owner(page).focus();\n  await page.keyboard.press('End');\n  await page.keyboard.press('Tab');\n  await expect(owner(page)).toHaveValue('Erez');\n  await expect(effort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`${title} reassigned to Erez.`);\n  await loads(page, 4, 12);\n  await page.keyboard.press('ControlOrMeta+A');\n  await page.keyboard.type('5');\n  await page.keyboard.press('Enter');\n  await expect(effort(page)).toHaveValue('5');\n  await expect(effort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} saved as 5 points.`);\n  await loads(page, 4, 9);\n  await effort(page).fill('4');\n  await page.keyboard.press('Tab');\n  await expect(saveEffort(page)).toBeFocused();\n  await page.keyboard.press('Space');\n  await expect(saveEffort(page)).toBeFocused();\n  await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} saved as 4 points.`);\n  await loads(page, 4, 8);\n  await expect(page.locator('#save-state')).toHaveText('Saved on this device');\n  await page.reload();\n  await expect(status(page)).toHaveValue('doing');\n  await switchView(page, 'Workload');\n  await expect(owner(page)).toHaveValue('Erez');\n  await expect(effort(page)).toHaveValue('4');\n  await loads(page, 4, 8);\n});\n\ntest('[AC-4] Invalid effort drafts are rejected accessibly without changing saved effort or totals', async ({ page }) => {\n  await switchView(page, 'Workload');\n  for (const invalid of ['', '0', '9', '1.5', 'abc']) {\n    await effort(page).fill(invalid);\n    await saveEffort(page).click();\n    await expect(effort(page)).toHaveAttribute('aria-invalid', 'true');\n    await expect(effort(page)).toHaveAttribute('aria-describedby', 'effort-error-welcome');\n    await expect(page.locator('#effort-error-welcome')).toHaveText('Enter a whole number from 1 to 8. Previous saved effort remains 8 points.');\n    await expect(page.locator('#announcement')).toHaveText(`Effort for ${title} was not saved. Enter a whole number from 1 to 8.`);\n    await expect(saveEffort(page)).toBeFocused();\n    await loads(page, 12, 4);\n  }\n  await page.reload();\n  await switchView(page, 'Workload');\n  await expect(effort(page)).toHaveValue('8');\n  await expect(page.locator('#effort-error-welcome')).toHaveCount(0);\n  await effort(page).fill('1');\n  await effort(page).press('Enter');\n  await expect(effort(page)).not.toHaveAttribute('aria-invalid', 'true');\n  await expect(page.locator('#effort-error-welcome')).toHaveCount(0);\n  await loads(page, 5, 4);\n});\n\ntest('[AC-4] Search teammate intersection empty state and Clear filters preserve tasks and focus All', async ({ page }) => {\n  const search = page.getByRole('searchbox', { name: 'Search tasks', exact: true });\n  await teammate(page, 'Maya').click();\n  await search.fill('welcome');\n  await expect(page.locator('#filter-status')).toHaveText('1 task shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(1);\n  await expect(page.locator('[data-task-id=\"welcome\"] h3')).toHaveText(title);\n  await expect(page.locator('#progress-percent')).toHaveText('33%');\n  await search.fill('');\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(3);\n  await search.fill('welcome');\n  await teammate(page, 'Erez').click();\n  await expect(page.locator('#filter-status')).toHaveText('0 tasks shown \u00b7 Erez');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(0);\n  await expect(page.locator('#filter-empty')).toBeVisible();\n  await expect(page.locator('#filter-empty-title')).toHaveText('No matching tasks');\n  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();\n  await expect(search).toHaveValue('');\n  await expect(teammate(page, 'All')).toBeFocused();\n  await expect(teammate(page, 'All')).toHaveAttribute('aria-pressed', 'true');\n  await defaults(page);\n  await page.reload();\n  await defaults(page);\n});\n\ntest('[AC-4] Search shortcuts clear without losing focus filters and workload totals ignore search', async ({ page }) => {\n  await teammate(page, 'Maya').click();\n  await page.keyboard.press('/');\n  const search = page.getByRole('searchbox', { name: 'Search tasks', exact: true });\n  await expect(search).toBeFocused();\n  await page.keyboard.type('  WELCOME ');\n  await expect(page.locator('#board [data-task-id]')).toHaveCount(1);\n  await expect(page.locator('#search-result')).toHaveText('1 task matches \u201cWELCOME\u201d');\n  await page.keyboard.press('Escape');\n  await expect(search).toHaveValue('');\n  await expect(search).not.toBeFocused();\n  await expect(page.locator('#filter-status')).toHaveText('3 tasks shown \u00b7 Maya');\n  await switchView(page, 'Workload');\n  await search.fill('welcome');\n  await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n  await loads(page, 12, 4);\n  await teammate(page, 'Erez').click();\n  await expect(page.locator('#filter-empty-title')).toHaveText('No matching active tasks');\n  await expect(page.locator('#filter-empty')).toBeVisible();\n  await loads(page, 12, 4);\n  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();\n  await expect(teammate(page, 'All')).toBeFocused();\n  await expect(search).toHaveValue('');\n  await expect(page.locator('#filter-status')).toHaveText('4 active tasks shown \u00b7 All teammates');\n  await loads(page, 12, 4);\n});\n\ntest('[AC-4] Reset clears saved edits drafts errors search and teammate focus and announces the fixture', async ({ page }) => {\n  await status(page).selectOption('done');\n  await switchView(page, 'Workload');\n  const mobileEffort = page.getByRole('textbox', { name: 'Effort for Give mobile some love', exact: true });\n  await mobileEffort.fill('3');\n  await mobileEffort.press('Enter');\n  await mobileEffort.fill('9');\n  await mobileEffort.press('Enter');\n  await expect(page.locator('#effort-error-mobile')).toBeVisible();\n  await teammate(page, 'Maya').click();\n  await page.locator('#search').fill('mobile');\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n  await expect(page.locator('#announcement')).toHaveText('Demo board reset. Two of six tasks complete.');\n  await expect(page.locator('#search')).toHaveValue('');\n  await expect(teammate(page, 'All')).toHaveAttribute('aria-pressed', 'true');\n  await expect(page.locator('.effort-error')).toHaveCount(0);\n  await expect(effort(page)).toHaveValue('8');\n  await expect(mobileEffort).toHaveValue('4');\n  await loads(page, 12, 4);\n  await switchView(page, 'Board');\n  await defaults(page);\n  await expect(status(page)).toHaveValue('todo');\n  await page.reload();\n  await defaults(page);\n  await switchView(page, 'Workload');\n  await expect(mobileEffort).toHaveValue('4');\n});\n\ntest('[AC-4] Corrupt persisted boards and invalid teammate focus fall back to the six-task fixture', async ({ page }) => {\n  for (const raw of ['bad json', '{}', 'null', '[]', '[null]', JSON.stringify(Array(6).fill(fixture[0]))]) {\n    await page.evaluate(({ raw, boardKey, focusKey }) => {\n      localStorage.setItem(boardKey, raw);\n      localStorage.setItem(focusKey, 'Unknown teammate');\n    }, { raw, boardKey, focusKey });\n    await page.reload();\n    await defaults(page);\n    await expect(status(page)).toHaveValue('todo');\n    await switchView(page, 'Workload');\n    await loads(page, 12, 4);\n    await expect(owner(page)).toHaveValue('Maya');\n    await expect(effort(page)).toHaveValue('8');\n    await page.reload();\n    await defaults(page);\n  }\n});\n\ntest('[AC-4] Storage normalization keeps valid editable fields and restores invalid fields and trusted display copy', async ({ page }) => {\n  const saved = fixture.map(task => ({ ...task }));\n  saved[0] = { ...saved[0], status: 'doing', owner: 'Erez', effort: 5, title: 'Untrusted title', description: 'Untrusted description', initials: 'XX', color: 'lilac' };\n  saved[3] = { ...saved[3], status: 'unknown', owner: 'Unknown', effort: 9 };\n  delete saved[1].effort;\n  await seed(page, saved);\n  for (let cycle = 0; cycle < 2; cycle++) {\n    await expect(status(page)).toHaveValue('doing');\n    await expect(page.locator('[data-task-id=\"welcome\"] h3')).toHaveText(title);\n    await expect(page.getByText('Untrusted title', { exact: true })).toHaveCount(0);\n    await expect(page.getByText('Untrusted description', { exact: true })).toHaveCount(0);\n    await expect(page.locator('[data-task-id=\"welcome\"] .avatar')).toHaveText('EW');\n    await expect(page.locator('[data-status-for=\"mobile\"]')).toHaveValue('doing');\n    await switchView(page, 'Workload');\n    await expect(owner(page)).toHaveValue('Erez');\n    await expect(effort(page)).toHaveValue('5');\n    await expect(page.locator('[data-owner-for=\"mobile\"]')).toHaveValue('Maya');\n    await expect(page.locator('[data-effort-for=\"mobile\"]')).toHaveValue('4');\n    await expect(page.locator('[data-effort-for=\"shortcuts\"]')).toHaveValue('2');\n    await loads(page, 4, 9);\n    await page.reload();\n  }\n});\n\ntest('[AC-2] [AC-3] [AC-4] Unavailable localStorage retains light usable views and existing unsaved-change fallback', async ({ page }) => {\n  await page.addInitScript(() => {\n    Object.defineProperty(window, 'localStorage', { configurable: true, get() { throw new DOMException('Storage unavailable', 'SecurityError'); } });\n  });\n  await page.reload();\n  await defaults(page);\n  await light(page, 'Board');\n  await expect(page.locator('#save-state')).toHaveText('Changes last until you close this page');\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await status(page).selectOption('doing');\n  await expect(status(page)).toHaveValue('doing');\n  await expect(page.locator('#announcement')).toHaveText(`${title} moved to In progress.`);\n  await switchView(page, 'Workload');\n  await light(page, 'Workload');\n  await owner(page).selectOption('Erez');\n  await effort(page).fill('5');\n  await effort(page).press('Enter');\n  await loads(page, 4, 9);\n  await expect(effort(page)).toHaveValue('5');\n  await teammate(page, 'Maya').click();\n  await expect(page.locator('#filter-status')).toHaveText('1 active task shown \u00b7 Maya');\n  await page.locator('#search').fill('mobile');\n  await expect(page.locator('#workload [data-workload-task=\"mobile\"]')).toBeVisible();\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await page.reload();\n  await defaults(page);\n  await light(page, 'Board');\n  await switchView(page, 'Workload');\n  await light(page, 'Workload');\n  await loads(page, 12, 4);\n  await expect(page.locator('#announcement')).not.toContainText(/appearance/i);\n  await page.getByRole('button', { name: 'Reset demo board', exact: true }).click();\n  await expect(page.locator('#announcement')).toHaveText('Demo board reset. Two of six tasks complete.');\n  await expect(page.locator('#save-state')).toHaveText('Changes last until you close this page');\n});\n",
+  "contract": "## Fixture and initial state\nController-owned setup seeds `bma-playground.appearance.v1` with `dark`, removes `bma-playground.board.v1` and `bma-playground.focus.v1`, then opens the pinned preview. This uses the six default tasks from src/board.js without resetting the obsolete Dark preference. Initial view is Board, search is empty and teammate focus is All. `#filter-status` reads `6 tasks shown \u00b7 All teammates`; `#progress-percent` reads `33%`; `#completion-count` reads `2 of 6 tasks`.\n\n## AC-1 \u2014 Removed controls\n`#appearance-control`, `#appearance-status`, `[data-appearance-option]` and the group named `Appearance` must be absent, not merely hidden. No replacement Light button or theme status is introduced. Verify absence in both views at desktop and narrow widths and through keyboard traversal.\n\n## AC-2 \u2014 Light presentation\nUse computed-style assertions independently of the recording: root color-scheme is `light`, page background is `rgb(243, 246, 252)`, ordinary task-card surface is `rgb(255, 255, 255)` and primary text is `rgb(24, 49, 79)`. Verify these with dark OS preference as well. Existing focus outlines, light fields and cream overload warning remain. `[data-view=\"board\"]` and `[data-view=\"workload\"]` remain named keyboard-accessible buttons in the `Launch view` group, with correct aria-pressed values and visibility of `#board`/`#workload`. No artificial visible theme text is added for assertions.\n\n## AC-3 \u2014 Obsolete preference and reload\nThe appearance key is inert; there is no migration of board or focus storage. Under the seeded Dark fixture, both views retain the light computed styles before and after reload. Reload starts in Board because selectedView is not persisted, while teammate focus remains persisted. Independently seed a valid customized board with welcome status `doing`, owner `Erez`, effort `5`, and focus `Maya`; verify these fields survive startup and reload unchanged. Exercise unavailable storage and verify no appearance-specific announcement, while preserving the existing board save fallback.\n\n## AC-4 \u2014 Existing interactions\nClicking `[data-view=\"workload\"]` shows `#workload .workload-context` with `Active effort \u00b7 To do + In progress. Totals include all tasks regardless of filters; Done adds zero.` and `#filter-status` with `4 active tasks shown \u00b7 All teammates`. `[data-workload-owner=\"Maya\"] [data-workload-load]` reads `12 / 8 points`; Erez reads `4 / 8 points`. Clicking `[data-teammate=\"Maya\"]`, named `Maya` in the `Focus by teammate` group, changes the status to `2 active tasks shown \u00b7 Maya` without changing either total. Reload returns to Board with `3 tasks shown \u00b7 Maya`.\n\n`#search` remains the task search input; its accessible name must identify task search. Filling it with `welcome` under Maya focus produces `1 task shown \u00b7 Maya` and `[data-task-id=\"welcome\"] h3` with `Polish the welcome screen`. Clearing the search restores the three Maya tasks. `#clear-filters`, named `Clear filters`, restores All and empty search and focuses the All button. `#reset`, named `Reset demo board`, resets the six-task fixture, clears drafts/errors/search/focus and announces `Demo board reset. Two of six tasks complete.` through `#announcement`.\n\nPreserve `[data-status-for=\"welcome\"]` named `Status for Polish the welcome screen`, its todo/doing/done values, drag targets `[data-column]`, and `[data-owner-for]`, `[data-effort-for]`, `[data-save-effort-for]` accessible labels derived from task titles. Independently verify drag and keyboard status edits, owner reassignment, valid effort commits, invalid effort retaining prior saved values, focus restoration, announcements, completion and capacity recalculation. Preserve `/` search focus and Escape clearing, storage normalization and unavailable-storage behavior. Independent acceptance covers these regressions; the recording below demonstrates view switching, focus persistence and search only."
+}

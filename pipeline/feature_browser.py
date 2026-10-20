@@ -688,6 +688,10 @@ def validate_acceptance_bundle(event, candidate, acceptance, plan=None):
                                  candidate["acceptanceSha256"], required_ids=ids)
         if review["verdict"] != "approve":
             raise ValueError("Browser preflight requires an approving review")
+    from acceptance_recovery import validate_recovery
+    validate_recovery(manifest, spec.decode(),
+                      manifest.get("acceptanceIds") if manifest.get("schemaVersion") == 2 else None,
+                      (candidate.get("implementationSessionId"), candidate.get("reviewSessionId")))
     return manifest, spec, contract
 
 

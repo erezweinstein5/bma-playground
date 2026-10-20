@@ -43,6 +43,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The recovery regression replays its immutable historical source.
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
@@ -52,6 +56,18 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:ui
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r pipeline/requirements.txt
+      - name: Replay independently reviewed acceptance recovery on Linux
+        run: python pipeline/replay_acceptance_recovery.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-recovery-replay
+          path: artifacts/acceptance-recovery-replay/
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
