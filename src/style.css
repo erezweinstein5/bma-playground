@@ -295,6 +295,9 @@ h2 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
 .view-switch button[aria-pressed="true"] { border-color: var(--control-border); background: var(--selected); color: var(--selected-text); font-weight: 600; }
 .board-toolbar { flex-wrap: wrap; }
 .task-filters { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.search-priority-filters { display: flex; align-items: center; gap: 9px; max-width: 100%; flex-wrap: wrap; }
+#high-priority-only { border: 1px solid var(--control-border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 9px 10px; font-size: 11px; white-space: nowrap; }
+#high-priority-only[aria-pressed="true"] { background: var(--selected); color: var(--selected-text); }
 #filter-status { color: var(--muted); font-size: 11px; margin: 12px 0 18px; }
 #filter-empty { text-align: center; padding: 24px; margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 #filter-empty h3 { margin: 0; font-size: 16px; }
@@ -302,7 +305,8 @@ h2 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
 #clear-filters { background: var(--selected); color: var(--selected-text); border: 1px solid var(--control-border); border-radius: 5px; padding: 10px 18px; font-size: 11px; font-weight: 600; }
 @media (max-width: 760px) {
   .task-filters { width: 100%; margin-left: 0; gap: 12px; }
-  .task-filters .search-field { order: -1; }
+  .search-priority-filters { order: -1; width: 100%; }
+  .search-priority-filters .search-field { flex: 1 1 140px; min-width: 0; }
   .teammate-filter { width: 100%; }
   .teammate-filter button { flex: 1; min-height: 40px; font-size: 12px; }
 }
